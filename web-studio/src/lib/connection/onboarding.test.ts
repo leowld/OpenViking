@@ -4,12 +4,14 @@ import {
   completeStudioSetup,
   needsStudioSetup,
   SETUP_STORAGE_KEY,
+  StudioSetupRequestError,
   WORKSPACE_SESSION_KEY,
   verifyStudioSetup,
   studioSetupDestination,
 } from '#/lib/connection/onboarding'
 import { PROFILES_STORAGE_KEY } from '#/lib/connection/profiles'
 import { createClient } from '#/gen/ov-client/client'
+import { OvClientError } from '#/lib/ov-client'
 import type * as ClientModule from '#/gen/ov-client/client'
 
 const get = vi.hoisted(() => vi.fn())
@@ -101,6 +103,21 @@ describe('first-use detection', () => {
   })
 })
 describe('verification', () => {
+  it('identifies the failed verification stage and masks credentials', () => {
+    const error = new StudioSetupRequestError(
+      'health',
+      new OvClientError({
+        code: 'PaymentRequired',
+        message: 'Account check failed for synthetic-key',
+        statusCode: 402,
+      }),
+      draft,
+    )
+    expect(error.stage).toBe('health')
+    expect(error.statusCode).toBe(402)
+    expect(error.message).toContain('HTTP 402')
+    expect(error.message).not.toContain('synthetic-key')
+  })
   it('uses hosted Bearer credentials and service-returned identity before checking private data', async () => {
     get
       .mockResolvedValueOnce({
@@ -164,7 +181,7 @@ describe('verification', () => {
       .mockRejectedValueOnce(new Error('Forbidden'))
     await expect(
       verifyStudioSetup(draft, new AbortController().signal),
-    ).rejects.toThrow('Forbidden')
+    ).rejects.toMatchObject({ stage: 'data', message: 'Forbidden' })
     expect(localStorage.getItem(PROFILES_STORAGE_KEY)).toBeNull()
   })
   it('requires a key except in development mode', async () => {

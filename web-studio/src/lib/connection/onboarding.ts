@@ -2,7 +2,7 @@ import { resolveConnectionDataRoot } from './probe'
 import type { ConnectionDraft } from '#/lib/connection/types'
 import { createConnectionHealthHeaders } from './auth'
 import { createClient } from '#/gen/ov-client/client'
-import { getOvResult } from '#/lib/ov-client'
+import { getOvResult, normalizeOvClientError } from '#/lib/ov-client'
 import {
   resolveServerAuthMode,
   fetchConnectionHealth,
@@ -20,6 +20,28 @@ export const WORKSPACE_SESSION_KEY = 'ov_studio_workspace_selected'
 export class StudioSetupError extends Error {
   constructor(public readonly code: 'invalidService' | 'keyRequired') {
     super(code)
+  }
+}
+
+export class StudioSetupRequestError extends Error {
+  readonly stage: 'health' | 'data'
+  readonly statusCode?: number
+
+  constructor(
+    stage: 'health' | 'data',
+    cause: unknown,
+    connection: ConnectionDraft,
+  ) {
+    const error = normalizeOvClientError(cause)
+    let message = error.message
+    for (const secret of [connection.apiKey, connection.adminApiKey]) {
+      if (secret) message = message.replaceAll(secret, '[redacted]')
+    }
+    super(`${error.statusCode ? `HTTP ${error.statusCode}: ` : ''}${message}`, {
+      cause,
+    })
+    this.stage = stage
+    this.statusCode = error.statusCode
   }
 }
 
@@ -115,7 +137,11 @@ export async function verifyStudioSetup(
   if (!isValidConnectionUrl(connection.baseUrl))
     throw new Error('Invalid server URL')
   if (connection.serviceSelection === 'volcengine') connection.adminApiKey = ''
-  const health = await fetchConnectionHealth(connection, signal)
+  const health = await fetchConnectionHealth(connection, signal).catch(
+    (error: unknown) => {
+      throw new StudioSetupRequestError('health', error, connection)
+    },
+  )
   if (!isUsableServerHealth(health))
     throw new StudioSetupError('invalidService')
   const mode = resolveServerAuthMode(health)
@@ -157,7 +183,9 @@ export async function verifyStudioSetup(
         path: { account_id: connection.accountId },
         signal,
       }),
-    )
+    ).catch((error: unknown) => {
+      throw new StudioSetupRequestError('data', error, connection)
+    })
   } else
     await getOvResult(
       dataClient.get({
@@ -169,7 +197,9 @@ export async function verifyStudioSetup(
         },
         signal,
       }),
-    )
+    ).catch((error: unknown) => {
+      throw new StudioSetupRequestError('data', error, connection)
+    })
   signal.throwIfAborted()
   return connection
 }

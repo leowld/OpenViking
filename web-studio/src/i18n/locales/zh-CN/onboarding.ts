@@ -28,6 +28,8 @@ export default {
   verifying: '正在验证…',
   verified: '连接验证成功',
   verifyFailed: '连接验证失败：',
+  healthRequestFailed: '检查服务健康状态时失败：',
+  dataRequestFailed: '检查记忆访问权限时失败：',
   enter: '进入 Studio',
   keyHelp: '填写服务提供的 API Key。开源开发模式无需填写。',
   hostedKeyHelp: '填写火山服务的用户 API Key，以访问当前用户的记忆。',

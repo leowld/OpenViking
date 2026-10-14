@@ -21,6 +21,7 @@ import {
 import { PLAIN_INPUT_PROPS } from '#/lib/form-input'
 import {
   StudioSetupError,
+  StudioSetupRequestError,
   studioSetupDestination,
   CLOUD_SETUP_URL,
   completeStudioSetup,
@@ -149,11 +150,13 @@ export function StudioSetup({
     } catch (err) {
       if (!controller.signal.aborted)
         setError(
-          err instanceof StudioSetupError
-            ? t(err.code)
-            : err instanceof Error
-              ? err.message
-              : String(err),
+          err instanceof StudioSetupRequestError
+            ? `${t(err.stage === 'health' ? 'healthRequestFailed' : 'dataRequestFailed')} ${err.message}`
+            : err instanceof StudioSetupError
+              ? t(err.code)
+              : err instanceof Error
+                ? err.message
+                : String(err),
         )
     } finally {
       if (abortRef.current === controller) {

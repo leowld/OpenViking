@@ -33,6 +33,8 @@ export default {
   verifying: 'Verifying…',
   verified: 'Connection verified',
   verifyFailed: 'Connection verification failed:',
+  healthRequestFailed: 'Service health check failed:',
+  dataRequestFailed: 'Memory access check failed:',
   enter: 'Enter Studio',
   keyHelp:
     'Use the API Key provided by your service. Open-source development mode does not require a key.',
