@@ -236,3 +236,61 @@ it('a pending identity switch must not overwrite a newly enabled profile', async
   expect(api.connection.apiKey).toBe('cloud-key')
   client.clear()
 })
+
+it('rejects an identity switch started by an obsolete profile callback', async () => {
+  localStorage.setItem('ov_console_connection', JSON.stringify(source))
+  health.mockImplementation(async (_url, headers) => ({
+    auth_mode: 'api_key',
+    version: '0.5.1',
+    role: 'user',
+    account_id: 'default',
+    user_id: headers.Authorization ? 'cloud-user' : 'alice',
+  }))
+  let api!: ReturnType<typeof useAppConnection>
+  function Capture() {
+    api = useAppConnection()
+    return null
+  }
+  const client = new QueryClient()
+  render(
+    <QueryClientProvider client={client}>
+      <AppConnectionProvider>
+        <Capture />
+      </AppConnectionProvider>
+    </QueryClientProvider>,
+  )
+  await waitFor(() => expect(api.serverMode).toBe('api_key'))
+  const oldSwitchIdentity = api.switchIdentity
+  await act(async () => {
+    api.saveProfile({
+      id: 'cloud',
+      name: 'Cloud',
+      connection: {
+        ...source,
+        baseUrl: 'https://api.vikingdb.cn-beijing.volces.com/openviking',
+        serviceSelection: 'volcengine',
+        apiKey: 'cloud-key',
+      },
+    })
+    api.activateProfile('cloud')
+  })
+  await waitFor(() => expect(api.connection.apiKey).toBe('cloud-key'))
+  await expect(
+    oldSwitchIdentity({
+      accountId: 'default',
+      userId: 'bob',
+      apiKey: 'bob-key',
+    }),
+  ).rejects.toMatchObject({ code: 'connectionChanged' })
+  expect(api.activeProfileId).toBe('cloud')
+  expect(api.connection.apiKey).toBe('cloud-key')
+  const saved = JSON.parse(localStorage.getItem(PROFILES_STORAGE_KEY)!)
+  expect(
+    saved.profiles.find((profile: { id: string }) => profile.id === 'cloud')
+      .connection.apiKey,
+  ).toBe('cloud-key')
+  expect(
+    health.mock.calls.some(([, headers]) => headers['X-API-Key'] === 'bob-key'),
+  ).toBe(false)
+  client.clear()
+})

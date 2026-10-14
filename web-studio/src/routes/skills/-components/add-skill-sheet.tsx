@@ -12,6 +12,7 @@ import {
   SheetTitle,
 } from '#/components/ui/sheet'
 import { Textarea } from '#/components/ui/textarea'
+import { ovClient } from '#/lib/ov-client'
 
 import {
   addNewSkill,
@@ -29,6 +30,20 @@ type Phase =
   | 'failed'
 
 const SCOPES: SkillScope[] = ['user', 'agent']
+
+function currentConnectionIdentity(): string {
+  const options = ovClient.getOptions()
+  const connection = ovClient.getConnection()
+  return JSON.stringify([
+    options.baseUrl,
+    options.apiKeyAuth,
+    connection.accountId,
+    connection.userId,
+    connection.apiKey,
+    connection.adminApiKey,
+    connection.identityHeaders,
+  ])
+}
 
 export function AddSkillSheet({
   open,
@@ -49,6 +64,15 @@ export function AddSkillSheet({
   const [warnings, setWarnings] = React.useState<string[]>([])
   const previousOpen = React.useRef(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const operationGeneration = React.useRef(0)
+
+  React.useLayoutEffect(() => {
+    if (!open) operationGeneration.current += 1
+    return () => {
+      // A closed drawer or a workspace change must invalidate pending writes.
+      operationGeneration.current += 1
+    }
+  }, [open])
 
   const reset = React.useCallback(() => {
     setContent('')
@@ -122,8 +146,15 @@ export function AddSkillSheet({
     setErrors([])
     setWarnings([])
     setPhase('validating')
+    const generation = operationGeneration.current
+    const sourceConnectionIdentity = currentConnectionIdentity()
     try {
       const validation = await validateNewSkill(content)
+      if (
+        generation !== operationGeneration.current ||
+        sourceConnectionIdentity !== currentConnectionIdentity()
+      )
+        return
       setWarnings(
         validation.warnings.map((issue) => issue.message || issue.rule || ''),
       )
@@ -136,6 +167,7 @@ export function AddSkillSheet({
       }
       setPhase('adding')
       const result = await addNewSkill(content, scope)
+      if (generation !== operationGeneration.current) return
       onAdded(scope)
       if (result.task_id) {
         setTaskId(result.task_id)
@@ -144,6 +176,7 @@ export function AddSkillSheet({
         setPhase('completed')
       }
     } catch (error) {
+      if (generation !== operationGeneration.current) return
       setErrors([error instanceof Error ? error.message : String(error)])
       setPhase('failed')
     }

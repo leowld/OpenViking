@@ -1,25 +1,60 @@
-import { expect, it } from 'vitest'
+// @vitest-environment jsdom
+import * as React from 'react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { ConnectionProfile } from '#/lib/connection/profiles'
-import { visibleConnectionProfiles } from './connection-profiles'
+import {
+  ConnectionProfilesList,
+  groupedConnectionProfiles,
+} from './connection-profiles'
+
+const connectionState = vi.hoisted(() => ({
+  profiles: [] as ConnectionProfile[],
+  activeProfileId: 'active',
+  saveProfile: vi.fn(),
+  activateProfile: vi.fn(),
+  deleteProfile: vi.fn(),
+}))
+
+vi.mock('#/hooks/use-app-connection', () => ({
+  useAppConnection: () => connectionState,
+}))
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}))
 
 const hosted = (
   id: string,
   accountId: string,
   userId = 'wld2',
+  apiKey = 'key',
 ): ConnectionProfile => ({
   id,
   name: id,
   connection: {
     serviceSelection: 'volcengine',
     baseUrl: 'https://api.vikingdb.cn-beijing.volces.com/openviking',
-    apiKey: 'key',
+    apiKey,
     adminApiKey: '',
     accountId,
     userId,
   },
 })
 
-it('shows one connection per service, workspace and user, preferring the active record', () => {
+beforeEach(() => {
+  vi.clearAllMocks()
+  connectionState.profiles = []
+  connectionState.activeProfileId = 'active'
+})
+afterEach(cleanup)
+
+it('groups identical connections without losing any saved profile', () => {
   const profiles = [
     hosted('duplicate', 'study'),
     hosted('active', 'study'),
@@ -27,6 +62,57 @@ it('shows one connection per service, workspace and user, preferring the active 
     hosted('other-space', 'production'),
   ]
   expect(
-    visibleConnectionProfiles(profiles, 'active').map((profile) => profile.id),
-  ).toEqual(['active', 'other-user', 'other-space'])
+    groupedConnectionProfiles(profiles, 'active').map((group) =>
+      group.map((profile) => profile.id),
+    ),
+  ).toEqual([['active', 'duplicate'], ['other-user'], ['other-space']])
+})
+
+it('keeps unverified default identities separate when their keys differ', () => {
+  connectionState.profiles = [
+    hosted('active', 'default', 'default', 'first-key'),
+    hosted('other', 'default', 'default', 'second-key'),
+  ]
+
+  expect(
+    groupedConnectionProfiles(
+      connectionState.profiles,
+      connectionState.activeProfileId,
+    ).map((group) => group.map((profile) => profile.id)),
+  ).toEqual([['active'], ['other']])
+
+  render(React.createElement(ConnectionProfilesList))
+  expect(screen.getAllByRole('button', { name: 'profiles.edit' })).toHaveLength(
+    2,
+  )
+  fireEvent.click(
+    screen.getAllByRole('button', { name: 'profiles.activate' })[1],
+  )
+  expect(connectionState.activateProfile).toHaveBeenCalledWith('other')
+})
+
+it('lets every record in an identical connection group be managed', () => {
+  connectionState.profiles = [
+    hosted('duplicate', 'study'),
+    hosted('active', 'study'),
+  ]
+
+  const { container } = render(React.createElement(ConnectionProfilesList))
+  const group = container.querySelector('details')
+  expect(group).not.toBeNull()
+  expect(group?.open).toBe(false)
+  expect(within(group!).getByText('profiles.title · 2')).toBeTruthy()
+
+  fireEvent.click(group!.querySelector('summary')!)
+  expect(group?.open).toBe(true)
+  expect(
+    within(group!).getAllByRole('button', { name: 'profiles.edit' }),
+  ).toHaveLength(2)
+  expect(
+    within(group!).getAllByRole('button', { name: 'profiles.delete' }),
+  ).toHaveLength(2)
+  fireEvent.click(
+    within(group!).getAllByRole('button', { name: 'profiles.activate' })[1],
+  )
+  expect(connectionState.activateProfile).toHaveBeenCalledWith('duplicate')
 })

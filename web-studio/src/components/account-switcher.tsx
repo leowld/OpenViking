@@ -42,6 +42,7 @@ import type {
 } from '#/lib/admin'
 import { DEFAULT_USER_ID } from '#/lib/admin-options'
 import { PLAIN_INPUT_PROPS } from '#/lib/form-input'
+import { ovClient } from '#/lib/ov-client'
 import { resolveStudioManagementCapabilities } from '#/lib/studio-permissions'
 import { cn } from '#/lib/utils'
 
@@ -54,6 +55,20 @@ export function selectAccountUser(
     ? users.filter((user) => Boolean(user.apiKey))
     : [...users]
   return candidates[0]
+}
+
+function currentRuntimeIdentity(): string {
+  const options = ovClient.getOptions()
+  const connection = ovClient.getConnection()
+  return JSON.stringify([
+    options.baseUrl,
+    options.apiKeyAuth,
+    connection.accountId,
+    connection.userId,
+    connection.apiKey,
+    connection.adminApiKey,
+    connection.identityHeaders,
+  ])
 }
 
 function ServiceIcon({ hosted }: { hosted: boolean }) {
@@ -117,6 +132,7 @@ export function AccountSwitcher() {
     connection,
     profiles,
     activeProfileId,
+    identityScopeKey,
     activateProfile,
     connectionRole,
     isConnectionRoleLoading,
@@ -135,6 +151,16 @@ export function AccountSwitcher() {
     apiKey: string
     userId: string
   } | null>(null)
+  const latestIdentityScopeKey = React.useRef(identityScopeKey)
+  latestIdentityScopeKey.current = identityScopeKey
+  const previousIdentityScopeKey = React.useRef(identityScopeKey)
+  React.useLayoutEffect(() => {
+    if (previousIdentityScopeKey.current !== identityScopeKey) {
+      setManualSwitch(null)
+      setOpen(false)
+    }
+    previousIdentityScopeKey.current = identityScopeKey
+  }, [identityScopeKey])
   const [createDraft, setCreateDraft] = React.useState<CreateAccountInput>({
     accountId: '',
     adminUserId: DEFAULT_USER_ID,
@@ -199,6 +225,17 @@ export function AccountSwitcher() {
       return
     }
 
+    const sourceIdentityScopeKey = identityScopeKey
+    const sourceRuntimeIdentity = currentRuntimeIdentity()
+    const assertCurrentIdentity = () => {
+      if (
+        latestIdentityScopeKey.current !== sourceIdentityScopeKey ||
+        currentRuntimeIdentity() !== sourceRuntimeIdentity
+      ) {
+        throw new Error(t('studio:profiles.connectionChanged'))
+      }
+    }
+
     setSwitchingAccountId(accountId)
     try {
       if (isGatewayHost) {
@@ -208,6 +245,7 @@ export function AccountSwitcher() {
         return
       }
       const users = await fetchAdminUsers(adminConnection, accountId)
+      assertCurrentIdentity()
       const firstUser = selectAccountUser(users, connection.userId, false)
       if (!firstUser) {
         throw new Error(t('errors.noUsers'))
@@ -219,6 +257,7 @@ export function AccountSwitcher() {
           : [firstUser]
       let switchError: unknown
       for (const user of candidates) {
+        assertCurrentIdentity()
         try {
           await switchIdentity({
             accountId,
@@ -234,10 +273,21 @@ export function AccountSwitcher() {
           )
           return
         } catch (error) {
+          // A profile change invalidates this entire selection, including
+          // retries with other users and the manual-key fallback.
+          if (
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === 'connectionChanged'
+          ) {
+            throw error
+          }
           switchError = error
         }
       }
 
+      assertCurrentIdentity()
       if (serverMode === 'api_key') {
         setOpen(false)
         setManualSwitch({

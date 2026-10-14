@@ -109,6 +109,48 @@ describe('fetchSessionMessages', () => {
     expect(getSessionIdArchiveByArchiveIdMock).not.toHaveBeenCalled()
   })
 
+  it('keeps readable current messages when context includes a system record', async () => {
+    getSessionIdContextMock.mockReturnValue(
+      response({
+        messages: [
+          { ...message('system', 'instructions'), role: 'system' },
+          message('user', 'question'),
+          { ...message('assistant', 'answer'), role: 'assistant' },
+        ],
+      }),
+    )
+
+    const result = await fetchSessionMessages('s', undefined, 'none')
+
+    expect(result.map(({ id }) => id)).toEqual(['user', 'assistant'])
+  })
+
+  it.each(['api', 'content'] as const)(
+    'keeps readable %s archive messages when history includes a system record',
+    async (source) => {
+      const messages = [
+        message('user', 'question'),
+        { ...message('system', 'instructions'), role: 'system' },
+        { ...message('assistant', 'answer'), role: 'assistant' },
+      ]
+      getSessionIdContextMock.mockReturnValue(response({ messages: [] }))
+      getSessionIdArchiveByArchiveIdMock.mockReturnValue(response({ messages }))
+      getContentReadMock.mockReturnValue(
+        response(messages.map((row) => JSON.stringify(row)).join('\n')),
+      )
+
+      const result = await fetchSessionMessages(
+        's',
+        { commit_count: 1, uri: 'viking://user/u/sessions/s' } as Parameters<
+          typeof fetchSessionMessages
+        >[1],
+        source,
+      )
+
+      expect(result.map(({ id }) => id)).toEqual(['user', 'assistant'])
+    },
+  )
+
   it('loads hosted archives through content read when current context is empty', async () => {
     getSessionIdContextMock.mockReturnValue(response({ messages: [] }))
     getContentReadMock.mockReturnValue(

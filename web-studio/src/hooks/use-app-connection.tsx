@@ -90,6 +90,12 @@ export function createConnectionError(key: ConnectionErrorKey): Error {
   return new Error(i18n.t(`connection:errors.${key}`))
 }
 
+function connectionChangedError(): Error & { code: 'connectionChanged' } {
+  return Object.assign(new Error(i18n.t('studio:profiles.connectionChanged')), {
+    code: 'connectionChanged' as const,
+  })
+}
+
 const ENV_BASE_URL =
   typeof import.meta.env.VITE_OV_BASE_URL === 'string'
     ? import.meta.env.VITE_OV_BASE_URL.trim()
@@ -515,6 +521,7 @@ export function AppConnectionProvider({
   const queryClient = useQueryClient()
   const authPromptSuppressedUntilRef = React.useRef(0)
   const connectionRevisionRef = React.useRef(0)
+  const connectionGenerationRef = React.useRef(0)
   const hostDiscoveryRef = React.useRef<Promise<Record<
     string,
     unknown
@@ -639,6 +646,7 @@ export function AppConnectionProvider({
             'checking',
           )
           queryClient.clear()
+          connectionGenerationRef.current += 1
           setConnection(next)
           return
         }
@@ -673,6 +681,7 @@ export function AppConnectionProvider({
           : connection
         if (resolved) {
           queryClient.clear()
+          connectionGenerationRef.current += 1
           setConnection(next)
         }
         setServerHealth({
@@ -758,6 +767,7 @@ export function AppConnectionProvider({
             role,
           }
           queryClient.clear()
+          connectionGenerationRef.current += 1
           setConnection(next)
           return
         }
@@ -805,7 +815,19 @@ export function AppConnectionProvider({
   }, [openConnectionSettings])
 
   const value = React.useMemo<AppConnectionContextValue>(() => {
+    const sourceGeneration = connectionGenerationRef.current
+    const sourceProfileId = profileState.activeId
+    const assertSourceConnection = () => {
+      if (
+        sourceGeneration !== connectionGenerationRef.current ||
+        sourceProfileId !== profilesRef.current?.activeId
+      ) {
+        throw connectionChangedError()
+      }
+    }
+
     const commitConnection = (next: ConnectionDraft) => {
+      connectionGenerationRef.current += 1
       connectionRevisionRef.current += 1
       authPromptSuppressedUntilRef.current =
         Date.now() + AUTH_PROMPT_SUPPRESSION_MS
@@ -815,6 +837,7 @@ export function AppConnectionProvider({
     }
 
     const activateConnection = (next: ConnectionDraft) => {
+      connectionGenerationRef.current += 1
       // Apply the new credentials before any new route effects can issue requests.
       const normalized = synchronizeConnectionRuntime(next, 'checking')
       reconnect()
@@ -894,14 +917,16 @@ export function AppConnectionProvider({
         apiKey,
         userId,
       }) => {
+        assertSourceConnection()
         if (serverMode === 'dev' || serverMode === 'checking') {
           throw createConnectionError('identitySwitchUnsupported')
         }
 
         const revision = ++connectionRevisionRef.current
         const assertCurrentConnection = () => {
+          assertSourceConnection()
           if (revision !== connectionRevisionRef.current)
-            throw new Error(i18n.t('studio:profiles.connectionChanged'))
+            throw connectionChangedError()
         }
 
         const requested = normalizeConnectionDraft({
@@ -938,6 +963,7 @@ export function AppConnectionProvider({
         })
       },
       switchManagementAccount: async (accountId) => {
+        assertSourceConnection()
         if (connectionRole !== 'root') {
           throw createConnectionError('rootRequired')
         }

@@ -15,7 +15,7 @@ export function parseSessionMessages(
 ): Message[] {
   if (value === undefined) return []
   if (!Array.isArray(value)) invalidMessage(location)
-  return value.map((message: unknown, index) => {
+  return value.flatMap((message: unknown, index): Message[] => {
     const at = `${location}, message ${index + 1}`
     if (
       !message ||
@@ -23,7 +23,9 @@ export function parseSessionMessages(
       !('id' in message) ||
       typeof message.id !== 'string' ||
       !('role' in message) ||
-      (message.role !== 'user' && message.role !== 'assistant') ||
+      (message.role !== 'user' &&
+        message.role !== 'assistant' &&
+        message.role !== 'system') ||
       !('parts' in message) ||
       !Array.isArray(message.parts) ||
       message.parts.some((part: unknown) => {
@@ -42,13 +44,18 @@ export function parseSessionMessages(
       })
     )
       invalidMessage(at)
-    return {
-      ...message,
-      created_at:
-        'created_at' in message && typeof message.created_at === 'string'
-          ? message.created_at
-          : '',
-    } as Message
+    // System records are valid session history, but this UI only renders
+    // user and assistant messages. Never present a system prompt as an answer.
+    if (message.role === 'system') return []
+    return [
+      {
+        ...message,
+        created_at:
+          'created_at' in message && typeof message.created_at === 'string'
+            ? message.created_at
+            : '',
+      } as Message,
+    ]
   })
 }
 
