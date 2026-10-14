@@ -101,6 +101,27 @@ describe('first-use detection', () => {
     expect(saved.profiles[0].name).toBe('Original')
     expect(saved.profiles[1].connection.serviceSelection).toBe('volcengine')
   })
+  it('keeps the selected profile when saved profiles share an address', () => {
+    localStorage.setItem(
+      PROFILES_STORAGE_KEY,
+      JSON.stringify({
+        activeId: 'second',
+        profiles: [
+          { id: 'first', name: 'First', connection: draft },
+          { id: 'second', name: 'Second', connection: draft },
+        ],
+      }),
+    )
+    completeStudioSetup(
+      { ...draft, apiKey: 'updated-key' },
+      'OpenViking',
+      'second',
+    )
+    const saved = JSON.parse(localStorage.getItem(PROFILES_STORAGE_KEY) || '{}')
+    expect(saved.activeId).toBe('second')
+    expect(saved.profiles[0].connection.apiKey).toBe('synthetic-key')
+    expect(saved.profiles[1].connection.apiKey).toBe('updated-key')
+  })
 })
 describe('verification', () => {
   it('identifies the failed verification stage and masks credentials', () => {

@@ -6,12 +6,18 @@ import {
   studioSetupDestination,
 } from '#/lib/connection/onboarding'
 import * as React from 'react'
-import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import {
+  Link,
+  Navigate,
+  useNavigate,
+  useRouterState,
+} from '@tanstack/react-router'
 import {
   MessagesSquareIcon,
   BookOpenIcon,
   BracesIcon,
   BrainIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   ListChecksIcon,
   HistoryIcon,
@@ -47,6 +53,7 @@ import { ScrollArea } from '#/components/ui/scroll-area'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -284,6 +291,9 @@ function NavGroupItem({ item, pathname, title, t }: NavGroupItemProps) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
   const [needsSetup, setNeedsSetup] = React.useState(needsStudioSetup)
   const [checkingHost, setCheckingHost] = React.useState(
     () => needsSetup && window.location.pathname.startsWith('/studio'),
@@ -313,7 +323,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {studioI18n.t('studio:loading')}
       </div>
     )
-  if (needsSetup)
+  if (pathname === '/config')
     return (
       <StudioSetup
         onComplete={(connection) => {
@@ -324,6 +334,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }}
       />
     )
+  if (needsSetup) return <Navigate replace to="/config" />
   return (
     <AppConnectionProvider>
       <IdentityScopedAppShell>{children}</IdentityScopedAppShell>
@@ -505,11 +516,24 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     >
       <Sidebar variant="sidebar" collapsible="icon">
         <SidebarHeader className="h-12 border-b border-sidebar-border/70 px-2 py-0">
-          <div className="flex h-full items-center justify-between gap-2 group-data-[collapsible=icon]:justify-center">
+          <div className="flex h-full items-center gap-1 group-data-[collapsible=icon]:justify-center">
+            {!isGatewayHost ? (
+              <Link
+                to="/config"
+                aria-label={t('header.backToConfig', { ns: 'appShell' })}
+                title={t('header.backToConfig', { ns: 'appShell' })}
+                className="flex size-7 shrink-0 items-center justify-center text-sidebar-foreground/45 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:hidden"
+              >
+                <ChevronLeftIcon
+                  className="size-3.5"
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+              </Link>
+            ) : null}
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
               <AccountSwitcher />
             </div>
-            <SidebarTrigger className="hidden shrink-0 md:inline-flex" />
           </div>
         </SidebarHeader>
 
@@ -706,6 +730,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        <SidebarFooter className="hidden items-end border-t border-sidebar-border/70 px-2 py-1 group-data-[collapsible=icon]:items-center md:flex">
+          <SidebarTrigger className="hidden shrink-0 md:inline-flex" />
+        </SidebarFooter>
       </Sidebar>
 
       <SidebarInset className="min-h-0 flex-1 overflow-hidden rounded-none border-0 bg-background shadow-none ring-0 md:m-0 md:ml-0">

@@ -530,6 +530,10 @@ export function AppConnectionProvider({
     role: ConnectionRole
   } | null>(null)
   if (initialConnectionRef.current === null) {
+    // The provider remounts after /config. Filesystem query keys are shared
+    // across profiles, so discard results fetched under the previous identity
+    // before any workspace route can read them.
+    queryClient.clear()
     profilesRef.current = readConnectionProfiles(readInitialConnection())
     initialConnectionRef.current = normalizeConnectionDraft(
       profilesRef.current.profiles.find(

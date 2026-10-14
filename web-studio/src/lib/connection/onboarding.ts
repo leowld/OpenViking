@@ -211,14 +211,20 @@ export function studioSetupDestination(
   return !connection.apiKey && connection.adminApiKey ? '/users' : '/home'
 }
 
-export function completeStudioSetup(connection: ConnectionDraft, name: string) {
+export function completeStudioSetup(
+  connection: ConnectionDraft,
+  name: string,
+  selectedProfileId?: string,
+) {
   // Do not enter the workspace if the browser cannot retain this connection.
   const saved = savedSetupConnections()
-  const existing = saved.find(
-    (profile) =>
-      profile.connection.baseUrl === connection.baseUrl &&
-      profile.connection.serviceSelection === connection.serviceSelection,
-  )
+  const existing =
+    saved.find((profile) => profile.id === selectedProfileId) ??
+    saved.find(
+      (profile) =>
+        profile.connection.baseUrl === connection.baseUrl &&
+        profile.connection.serviceSelection === connection.serviceSelection,
+    )
   const id = existing?.id ?? crypto.randomUUID()
   localStorage.setItem(
     PROFILES_STORAGE_KEY,

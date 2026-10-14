@@ -403,6 +403,23 @@ export async function fetchAdminUsers(
     .filter((item): item is AdminUser => Boolean(item))
 }
 
+/** List selectable identities without returning their API keys to the wizard. */
+export async function fetchAdminUserDirectory(
+  connection: AdminConnection,
+  accountId: string,
+): Promise<AdminUser[]> {
+  const result = await getOvResult<unknown[]>(
+    createAdminClient(connection).get({
+      url: '/api/v1/admin/accounts/{account_id}/users',
+      path: { account_id: accountId },
+      query: { include_credentials: false },
+    }),
+  )
+  return result
+    .map((item) => normalizeUser(accountId, item))
+    .filter((item): item is AdminUser => Boolean(item))
+}
+
 export type AdminUserPage = {
   users: AdminUser[]
   total: number

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as MemoriesRouteImport } from './routes/memories'
+import { Route as ConfigRouteImport } from './routes/config'
 import { Route as WatchesRouteRouteImport } from './routes/watches/route'
 import { Route as VikingbotRouteRouteImport } from './routes/vikingbot/route'
 import { Route as UsersRouteRouteImport } from './routes/users/route'
@@ -58,6 +59,11 @@ const PlaygroundRoute = PlaygroundRouteImport.update({
 const MemoriesRoute = MemoriesRouteImport.update({
   id: '/memories',
   path: '/memories',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfigRoute = ConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WatchesRouteRoute = WatchesRouteRouteImport.update({
@@ -272,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/users': typeof UsersRouteRouteWithChildren
   '/vikingbot': typeof VikingbotRouteRouteWithChildren
   '/watches': typeof WatchesRouteRoute
+  '/config': typeof ConfigRoute
   '/memories': typeof MemoriesRoute
   '/playground': typeof PlaygroundRoute
   '/agent-experience/$experienceUri': typeof AgentExperienceExperienceUriRoute
@@ -309,6 +316,7 @@ export interface FileRoutesByTo {
   '/skills': typeof SkillsRouteRoute
   '/tasks': typeof TasksRouteRoute
   '/watches': typeof WatchesRouteRoute
+  '/config': typeof ConfigRoute
   '/memories': typeof MemoriesRoute
   '/playground': typeof PlaygroundRoute
   '/agent-experience/$experienceUri': typeof AgentExperienceExperienceUriRoute
@@ -352,6 +360,7 @@ export interface FileRoutesById {
   '/users': typeof UsersRouteRouteWithChildren
   '/vikingbot': typeof VikingbotRouteRouteWithChildren
   '/watches': typeof WatchesRouteRoute
+  '/config': typeof ConfigRoute
   '/memories': typeof MemoriesRoute
   '/playground': typeof PlaygroundRoute
   '/agent-experience/$experienceUri': typeof AgentExperienceExperienceUriRoute
@@ -396,6 +405,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/vikingbot'
     | '/watches'
+    | '/config'
     | '/memories'
     | '/playground'
     | '/agent-experience/$experienceUri'
@@ -433,6 +443,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/watches'
+    | '/config'
     | '/memories'
     | '/playground'
     | '/agent-experience/$experienceUri'
@@ -475,6 +486,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/vikingbot'
     | '/watches'
+    | '/config'
     | '/memories'
     | '/playground'
     | '/agent-experience/$experienceUri'
@@ -518,6 +530,7 @@ export interface RootRouteChildren {
   UsersRouteRoute: typeof UsersRouteRouteWithChildren
   VikingbotRouteRoute: typeof VikingbotRouteRouteWithChildren
   WatchesRouteRoute: typeof WatchesRouteRoute
+  ConfigRoute: typeof ConfigRoute
   MemoriesRoute: typeof MemoriesRoute
   PlaygroundRoute: typeof PlaygroundRoute
   CompileNewRoute: typeof CompileNewRoute
@@ -541,6 +554,13 @@ declare module '@tanstack/react-router' {
       path: '/memories'
       fullPath: '/memories'
       preLoaderRoute: typeof MemoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/config': {
+      id: '/config'
+      path: '/config'
+      fullPath: '/config'
+      preLoaderRoute: typeof ConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/watches': {
@@ -911,6 +931,7 @@ const rootRouteChildren: RootRouteChildren = {
   UsersRouteRoute: UsersRouteRouteWithChildren,
   VikingbotRouteRoute: VikingbotRouteRouteWithChildren,
   WatchesRouteRoute: WatchesRouteRoute,
+  ConfigRoute: ConfigRoute,
   MemoriesRoute: MemoriesRoute,
   PlaygroundRoute: PlaygroundRoute,
   CompileNewRoute: CompileNewRoute,

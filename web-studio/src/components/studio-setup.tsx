@@ -13,6 +13,13 @@ import {
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
+import {
   Card,
   CardContent,
   CardDescription,
@@ -43,6 +50,20 @@ const PROVIDERS = [
 ] as const
 const THEMES = ['light', 'dark', 'system'] as const
 const ADVANCED_FIELDS = ['adminApiKey', 'accountId', 'userId'] as const
+const NEW_CONNECTION = 'new'
+
+function newConnectionDraft(
+  provider: (typeof PROVIDERS)[number][0],
+): ConnectionDraft {
+  return {
+    serviceSelection: provider,
+    baseUrl: provider === 'volcengine' ? CLOUD_SETUP_URL : '',
+    apiKey: '',
+    adminApiKey: '',
+    accountId: 'default',
+    userId: 'default',
+  }
+}
 
 export function StudioSetup({
   onComplete,
@@ -53,39 +74,90 @@ export function StudioSetup({
   const { theme, setTheme } = useTheme()
   const [step, setStep] = useState(0)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [savedConnections] = useState(savedSetupConnections)
-  const [draft, setDraft] = useState<ConnectionDraft>(() => {
-    const activeId = (() => {
-      try {
-        return JSON.parse(
-          localStorage.getItem('ov_console_connection_profiles') || '{}',
-        ).activeId
-      } catch {
-        return ''
-      }
-    })()
-    const selected = savedConnections.find((profile) => profile.id === activeId)
-    if (selected) return selected.connection
-    if (savedConnections.length) return savedConnections[0].connection
-    return {
-      serviceSelection: 'opensource',
-      baseUrl: import.meta.env.VITE_OV_BASE_URL || '',
-      apiKey: import.meta.env.VITE_OV_API_KEY || '',
-      adminApiKey: import.meta.env.VITE_OV_ADMIN_API_KEY || '',
-      accountId: import.meta.env.VITE_OV_ACCOUNT || 'default',
-      userId: import.meta.env.VITE_OV_USER || 'default',
+  const [activeProfileId] = useState(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem('ov_console_connection_profiles') || '{}',
+      ).activeId as string | undefined
+    } catch {
+      return undefined
     }
   })
-  const providerDraftsRef = useRef<
+  const [savedConnections] = useState(() => {
+    const seen = new Set<string>()
+    const profiles = savedSetupConnections()
+    if (
+      import.meta.env.DEV &&
+      profiles.length > 0 &&
+      !profiles.some(
+        (profile) => profile.connection.serviceSelection === 'opensource',
+      ) &&
+      ['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ) {
+      profiles.push({
+        id: 'local-openviking',
+        name: 'Local OpenViking',
+        connection: {
+          ...newConnectionDraft('opensource'),
+          baseUrl: 'http://127.0.0.1:1933',
+        },
+      })
+    }
+    return profiles
+      .map((profile) => ({
+        ...profile,
+        connection: {
+          ...profile.connection,
+          apiKey: '',
+          adminApiKey: '',
+        },
+      }))
+      .sort((a, b) =>
+        a.id === activeProfileId ? -1 : b.id === activeProfileId ? 1 : 0,
+      )
+      .filter((profile) => {
+        const address = new URL(profile.connection.baseUrl).href.replace(
+          /\/+$/,
+          '',
+        )
+        const key = `${profile.connection.serviceSelection}:${address}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+  })
+  const [selectedConnectionId, setSelectedConnectionId] = useState(
+    () => savedConnections[0]?.id ?? NEW_CONNECTION,
+  )
+  const [draft, setDraft] = useState<ConnectionDraft>(() => {
+    if (savedConnections.length) {
+      return savedConnections[0].connection
+    }
+    return newConnectionDraft('opensource')
+  })
+  const newDraftsRef = useRef<
     Partial<Record<(typeof PROVIDERS)[number][0], ConnectionDraft>>
+  >({})
+  const providerSelectionsRef = useRef<
+    Partial<Record<(typeof PROVIDERS)[number][0], string>>
   >({})
   const [verified, setVerified] = useState<ConnectionDraft | null>(null)
   const providerConnections = savedConnections.filter(
     (profile) => profile.connection.serviceSelection === draft.serviceSelection,
   )
+  const selectedProfile = providerConnections.find(
+    (profile) => profile.id === selectedConnectionId,
+  )
+  const needsNewAddress =
+    draft.serviceSelection === 'opensource' &&
+    selectedConnectionId === NEW_CONNECTION
+  const canContinue =
+    (!needsNewAddress && draft.serviceSelection !== 'volcengine') ||
+    isValidConnectionUrl(draft.baseUrl)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const abortRef = useRef<AbortController | null>(null)
+  const keyInputRef = useRef<HTMLInputElement>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const cardAnimationRef = useRef<Animation | null>(null)
@@ -133,20 +205,40 @@ export function StudioSetup({
     setVerified(null)
     setError('')
   }
+  function selectConnection(id: string) {
+    if (id === selectedConnectionId) return
+    const provider =
+      draft.serviceSelection === 'volcengine' ? 'volcengine' : 'opensource'
+    if (selectedConnectionId === NEW_CONNECTION)
+      newDraftsRef.current[provider] = draft
+    setSelectedConnectionId(id)
+    providerSelectionsRef.current[provider] = id
+    setDraft(
+      id === NEW_CONNECTION
+        ? (newDraftsRef.current[provider] ?? newConnectionDraft(provider))
+        : savedConnections.find((profile) => profile.id === id)!.connection,
+    )
+    setVerified(null)
+    setError('')
+  }
   function switchProvider(provider: (typeof PROVIDERS)[number][0]) {
     const current =
       draft.serviceSelection === 'volcengine' ? 'volcengine' : 'opensource'
     if (provider === current) return
-    providerDraftsRef.current[current] = draft
+    providerSelectionsRef.current[current] = selectedConnectionId
+    if (selectedConnectionId === NEW_CONNECTION)
+      newDraftsRef.current[current] = draft
+    const nextId =
+      providerSelectionsRef.current[provider] ??
+      savedConnections.find(
+        (profile) => profile.connection.serviceSelection === provider,
+      )?.id ??
+      NEW_CONNECTION
+    setSelectedConnectionId(nextId)
     setDraft(
-      providerDraftsRef.current[provider] ?? {
-        serviceSelection: provider,
-        baseUrl: provider === 'volcengine' ? CLOUD_SETUP_URL : '',
-        apiKey: '',
-        adminApiKey: '',
-        accountId: 'default',
-        userId: 'default',
-      },
+      nextId === NEW_CONNECTION
+        ? (newDraftsRef.current[provider] ?? newConnectionDraft(provider))
+        : savedConnections.find((profile) => profile.id === nextId)!.connection,
     )
     setVerified(null)
     setError('')
@@ -160,6 +252,9 @@ export function StudioSetup({
         completeStudioSetup(
           verified,
           t(`studio:providers.${verified.serviceSelection}`),
+          selectedConnectionId === NEW_CONNECTION
+            ? undefined
+            : selectedConnectionId,
         )
         onComplete(verified)
       } catch {
@@ -169,6 +264,11 @@ export function StudioSetup({
     }
     if (!isValidConnectionUrl(draft.baseUrl)) {
       setError(t('studio:profiles.invalidUrl'))
+      return
+    }
+    if (draft.serviceSelection === 'volcengine' && !draft.apiKey.trim()) {
+      setError(t('keyRequired'))
+      keyInputRef.current?.focus()
       return
     }
     const controller = new AbortController()
@@ -201,25 +301,22 @@ export function StudioSetup({
   return (
     <main className="flex h-svh flex-col items-center overflow-y-auto bg-background px-5 py-6 text-foreground sm:px-8 sm:py-8 lg:pt-[max(2rem,calc((100svh-52rem)/2))]">
       <div className="w-full max-w-5xl shrink-0">
-        <div className="mb-6 flex items-center gap-3 lg:mb-14">
+        <div className="mb-6 flex items-center gap-3 lg:mb-8">
           <img src="/ov-logo.png" alt="" className="size-10 rounded-xl" />
           <span className="text-base font-semibold tracking-tight">
             {t('brand')}
           </span>
         </div>
         <div className="grid items-start gap-6 lg:grid-cols-[1fr_1.15fr] lg:gap-20">
-          <header className="lg:pt-6">
-            <p className="mb-4 text-xs font-medium tracking-widest text-muted-foreground">
-              {t('steps')}
-            </p>
+          <header className="lg:pt-5">
             <h1
               ref={headingRef}
               tabIndex={-1}
-              className="max-w-md whitespace-pre-line text-3xl leading-tight font-semibold tracking-tight outline-none sm:text-4xl lg:text-[42px] lg:leading-[1.2]"
+              className="whitespace-nowrap text-[clamp(1.25rem,3vw,2rem)] leading-tight font-semibold tracking-tight outline-none"
             >
-              {step === 0 ? t('welcome') : t('connectionTitle')}
+              {step === 0 ? t('workspace') : t('connectionTitle')}
             </h1>
-            <p className="mt-3 max-w-sm text-sm leading-6 lg:mt-5 lg:leading-7 text-muted-foreground">
+            <p className="mt-3 max-w-sm text-sm leading-6 text-muted-foreground lg:mt-5 lg:min-h-14 lg:leading-7">
               {step === 0
                 ? t('welcomeDescription')
                 : t('connectionDescription')}
@@ -237,19 +334,19 @@ export function StudioSetup({
                   {index === 0 ? (
                     <span
                       aria-hidden="true"
-                      className="absolute left-[13px] top-3.5 hidden h-[calc(100%+1.75rem)] w-0.5 overflow-hidden bg-border lg:block"
+                      className="absolute left-[11.5px] top-7 hidden h-[calc(100%-4px)] w-px overflow-hidden rounded-full bg-border/70 lg:block"
                     >
                       <span
-                        className={`block h-full w-full origin-top bg-foreground transition-transform duration-500 ease-out motion-reduce:transition-none ${step === 1 ? 'scale-y-100' : 'scale-y-0'}`}
+                        className={`block h-full w-full origin-top bg-foreground/70 transition-transform duration-500 ease-out motion-reduce:transition-none ${step === 1 ? 'scale-y-100' : 'scale-y-0'}`}
                       />
                     </span>
                   ) : null}
                   <span
                     aria-hidden="true"
-                    className={`relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium transition-colors duration-300 motion-reduce:transition-none ${step >= index ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground'}`}
+                    className={`relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-medium transition-colors duration-300 motion-reduce:transition-none ${step >= index ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground'}`}
                   >
                     {step > index ? (
-                      <CheckIcon className="size-3.5" />
+                      <CheckIcon className="size-3" />
                     ) : (
                       index + 1
                     )}
@@ -272,7 +369,7 @@ export function StudioSetup({
             ref={cardRef}
             className="gap-0 overflow-hidden rounded-2xl border-border/70 bg-card py-0 shadow-sm"
           >
-            <CardHeader className="gap-2 border-b border-border/70 px-6 py-4 sm:px-8 sm:py-6">
+            <CardHeader className="gap-2 border-b border-border/70 px-6 py-4 sm:px-8 sm:py-5">
               <CardTitle className="text-lg font-semibold tracking-tight">
                 {step === 0 ? t('workspace') : t('connection')}
               </CardTitle>
@@ -280,9 +377,9 @@ export function StudioSetup({
                 {t(step === 0 ? 'workspaceHint' : 'connectionHint')}
               </CardDescription>
             </CardHeader>
-            <CardContent className="px-6 py-5 sm:px-8 sm:py-7">
+            <CardContent className="px-6 py-5 sm:px-8">
               {step === 0 ? (
-                <div className="space-y-5 sm:space-y-6">
+                <div className="space-y-4">
                   <fieldset className="space-y-3">
                     <legend className="text-sm font-medium">
                       {t('studio:serviceType')}
@@ -310,31 +407,112 @@ export function StudioSetup({
                       ))}
                     </div>
                   </fieldset>
-                  {providerConnections.length ? (
-                    <fieldset className="space-y-2">
-                      <legend className="text-sm font-medium">
-                        {t('savedWorkspaces')}
-                      </legend>
-                      {providerConnections.map((profile) => (
-                        <button
-                          key={profile.id}
-                          type="button"
-                          className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-3 text-left text-sm hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => update(profile.connection)}
+                  {draft.serviceSelection === 'opensource' ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">
+                        {t('connectionChoice')}
+                      </p>
+                      <Select
+                        value={selectedConnectionId}
+                        onValueChange={(value) => {
+                          if (value) selectConnection(value)
+                        }}
+                      >
+                        <SelectTrigger
+                          aria-label={t('connectionChoice')}
+                          className="h-11 w-full min-w-0 rounded-lg bg-background px-4 shadow-xs"
                         >
-                          <span className="min-w-0 truncate">
-                            {profile.name} · {profile.connection.baseUrl}
-                          </span>
-                          {draft.baseUrl === profile.connection.baseUrl ? (
-                            <CheckIcon
-                              aria-hidden="true"
-                              className="size-4 shrink-0"
-                            />
-                          ) : null}
-                        </button>
-                      ))}
-                    </fieldset>
-                  ) : null}
+                          <SelectValue>
+                            {selectedProfile
+                              ? selectedProfile.connection.baseUrl
+                              : t('newConnection')}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent
+                          align="start"
+                          className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-1 shadow-lg before:hidden"
+                        >
+                          {providerConnections.map((profile) => (
+                            <SelectItem
+                              key={profile.id}
+                              value={profile.id}
+                              className="min-h-10 rounded-lg px-3 pr-9"
+                            >
+                              {profile.connection.baseUrl}
+                            </SelectItem>
+                          ))}
+                          <SelectItem
+                            value={NEW_CONNECTION}
+                            className="min-h-10 rounded-lg px-3 pr-9"
+                          >
+                            {t('newConnection')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {needsNewAddress ? (
+                        <div className="space-y-2 pt-2">
+                          <label htmlFor="setup-new-url" className="sr-only">
+                            {t('settings:fields.baseUrl')}
+                          </label>
+                          <Input
+                            id="setup-new-url"
+                            className="h-11 rounded-lg"
+                            type="url"
+                            value={draft.baseUrl}
+                            placeholder="http://127.0.0.1:1933"
+                            aria-invalid={
+                              Boolean(draft.baseUrl) && !canContinue
+                            }
+                            aria-describedby="setup-new-url-help"
+                            onChange={(event) =>
+                              update({ baseUrl: event.target.value })
+                            }
+                            {...PLAIN_INPUT_PROPS}
+                          />
+                          <p
+                            id="setup-new-url-help"
+                            className="text-xs text-muted-foreground"
+                          >
+                            {draft.baseUrl && !canContinue
+                              ? t('studio:profiles.invalidUrl')
+                              : t('newAddressHint')}
+                          </p>
+                        </div>
+                      ) : (
+                        <p
+                          className="line-clamp-2 break-all px-1 pt-1 text-xs text-muted-foreground"
+                          title={draft.baseUrl}
+                        >
+                          {draft.baseUrl}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="setup-hosted-url"
+                        className="text-sm font-medium"
+                      >
+                        {t('hostedEndpoint')}
+                      </label>
+                      <Input
+                        id="setup-hosted-url"
+                        className="h-11 rounded-lg"
+                        type="url"
+                        value={draft.baseUrl}
+                        aria-invalid={Boolean(draft.baseUrl) && !canContinue}
+                        onChange={(event) =>
+                          update({ baseUrl: event.target.value })
+                        }
+                        {...PLAIN_INPUT_PROPS}
+                      />
+                      {draft.baseUrl && !canContinue ? (
+                        <p className="text-xs text-destructive">
+                          {t('studio:profiles.invalidUrl')}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                   <fieldset className="space-y-3">
                     <legend className="text-sm font-medium">
                       {t('language')}
@@ -343,7 +521,7 @@ export function StudioSetup({
                       {LANGUAGES.map(([value, label]) => (
                         <label
                           key={value}
-                          className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-4 transition-colors hover:bg-muted/40 has-checked:border-foreground has-checked:bg-muted/40 has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-offset-2"
+                          className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-4 transition-colors hover:bg-muted/40 has-checked:border-foreground has-checked:bg-muted/40 has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-offset-2"
                         >
                           <input
                             className="sr-only"
@@ -377,7 +555,7 @@ export function StudioSetup({
                       {THEMES.map((value) => (
                         <label
                           key={value}
-                          className="min-w-0 cursor-pointer rounded-xl border border-border p-2.5 transition-colors hover:bg-muted/40 has-checked:border-foreground has-checked:bg-muted/30 has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-offset-2"
+                          className="min-w-0 cursor-pointer rounded-xl border border-border p-2 transition-colors hover:bg-muted/40 has-checked:border-foreground has-checked:bg-muted/30 has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-offset-2"
                         >
                           <input
                             className="sr-only"
@@ -388,7 +566,7 @@ export function StudioSetup({
                             onChange={() => setTheme(value)}
                           />
                           <ThemePreview appearance={value} />
-                          <span className="mt-3 flex items-center justify-between gap-1 text-xs font-medium sm:text-sm">
+                          <span className="mt-2 flex items-center justify-between gap-1 text-xs font-medium sm:text-sm">
                             {t(value)}
                             {(theme ?? 'system') === value ? (
                               <CheckIcon
@@ -403,6 +581,7 @@ export function StudioSetup({
                   </fieldset>
                   <Button
                     className="mt-2 min-h-11 w-full rounded-lg"
+                    disabled={!canContinue}
                     onClick={() => changeStep(1)}
                   >
                     {t('next')}
@@ -415,46 +594,48 @@ export function StudioSetup({
                   className="space-y-5"
                 >
                   <fieldset disabled={busy} className="space-y-4">
-                    <label
-                      className="grid gap-2 text-sm font-medium"
-                      htmlFor="setup-url"
-                    >
-                      {t('settings:fields.baseUrl')}
-                      <Input
-                        className="h-11 rounded-lg bg-background/60 text-sm"
-                        id="setup-url"
-                        name="baseUrl"
-                        required
-                        type="url"
-                        value={draft.baseUrl}
-                        placeholder={
-                          draft.serviceSelection === 'volcengine'
-                            ? CLOUD_SETUP_URL
-                            : 'http://127.0.0.1:1933'
-                        }
-                        onChange={(event) =>
-                          update({ baseUrl: event.target.value })
-                        }
-                        {...PLAIN_INPUT_PROPS}
-                      />
-                    </label>
+                    <div className="grid gap-2 text-sm">
+                      <span className="font-medium">
+                        {t('settings:fields.baseUrl')}
+                      </span>
+                      <p className="break-all rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+                        {draft.baseUrl}
+                      </p>
+                    </div>
                     <label
                       className="grid gap-2 text-sm font-medium"
                       htmlFor="setup-key"
                     >
                       {t('settings:fields.userApiKey')}
                       <Input
+                        ref={keyInputRef}
                         className="h-11 rounded-lg bg-background/60 text-sm"
                         id="setup-key"
                         name="apiKey"
                         type="password"
+                        aria-invalid={error === t('keyRequired')}
+                        aria-describedby={
+                          error === t('keyRequired')
+                            ? 'setup-key-error'
+                            : undefined
+                        }
                         value={draft.apiKey}
                         onChange={(event) =>
                           update({ apiKey: event.target.value })
                         }
                         {...PLAIN_INPUT_PROPS}
+                        autoComplete="new-password"
                       />
                     </label>
+                    {error === t('keyRequired') ? (
+                      <p
+                        id="setup-key-error"
+                        role="alert"
+                        className="text-sm text-destructive"
+                      >
+                        {error}
+                      </p>
+                    ) : null}
                     <p className="text-sm text-muted-foreground">
                       {t(
                         draft.serviceSelection === 'volcengine'
@@ -496,6 +677,7 @@ export function StudioSetup({
                                   )}
                                   <Input
                                     id={`setup-${key}`}
+                                    className="focus-visible:ring-inset"
                                     name={key}
                                     type={
                                       key === 'adminApiKey'
@@ -507,6 +689,11 @@ export function StudioSetup({
                                       update({ [key]: event.target.value })
                                     }
                                     {...PLAIN_INPUT_PROPS}
+                                    autoComplete={
+                                      key === 'adminApiKey'
+                                        ? 'new-password'
+                                        : 'off'
+                                    }
                                   />
                                 </label>
                               ))}
@@ -516,7 +703,7 @@ export function StudioSetup({
                       </div>
                     ) : null}
                   </fieldset>
-                  {error ? (
+                  {error && error !== t('keyRequired') ? (
                     <p
                       role="alert"
                       className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm leading-6 text-destructive"
@@ -578,7 +765,7 @@ function ThemePreview({ appearance }: { appearance: (typeof THEMES)[number] }) {
   return (
     <div
       aria-hidden="true"
-      className={`relative h-16 overflow-hidden rounded-md border border-black/10 sm:h-20 ${appearance === 'light' ? 'bg-[#f9fafb]' : appearance === 'dark' ? 'bg-[#191b20]' : 'bg-[linear-gradient(110deg,#f9fafb_50%,#191b20_50%)]'}`}
+      className={`relative h-14 overflow-hidden rounded-md border border-black/10 ${appearance === 'light' ? 'bg-[#f9fafb]' : appearance === 'dark' ? 'bg-[#191b20]' : 'bg-[linear-gradient(110deg,#f9fafb_50%,#191b20_50%)]'}`}
     >
       <div
         className={`flex h-4 items-center gap-1 border-b px-2 ${appearance === 'dark' ? 'border-white/10' : 'border-black/10'}`}

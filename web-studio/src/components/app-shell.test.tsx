@@ -9,7 +9,7 @@ import {
   shouldShowGatewayNavigation,
 } from './app-shell'
 
-const bootstrap = vi.hoisted(() => ({ health: vi.fn() }))
+const bootstrap = vi.hoisted(() => ({ health: vi.fn(), pathname: '/' }))
 vi.mock('#/lib/connection/health', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   fetchServerHealth: bootstrap.health,
@@ -21,10 +21,19 @@ vi.mock('#/hooks/use-app-connection', async (original) => ({
 
 vi.mock('@tanstack/react-router', async (original) => ({
   ...(await original<Record<string, unknown>>()),
+  Navigate: ({ to }: { to: string }) => <output>{to}</output>,
   useNavigate: () => vi.fn(),
+  useRouterState: ({
+    select,
+  }: {
+    select: (state: { location: { pathname: string } }) => unknown
+  }) => select({ location: { pathname: bootstrap.pathname } }),
 }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  bootstrap.pathname = '/'
+})
 
 describe('ConnectionScopedRouteContent', () => {
   it('does not mount route content while the server mode is unresolved', () => {
@@ -51,7 +60,7 @@ describe('ConnectionScopedRouteContent', () => {
   )
 })
 
-it('shows first-use setup before mounting business routes or the connection provider', () => {
+it('routes first use to the configuration page before mounting business routes', () => {
   localStorage.clear()
   sessionStorage.clear()
   render(
@@ -60,10 +69,18 @@ it('shows first-use setup before mounting business routes or the connection prov
     </AppShell>,
   )
   expect(screen.queryByTestId('business-route')).toBeNull()
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(
-    'Welcome',
-  )
+  expect(screen.getByText('/config')).toBeTruthy()
   expect(localStorage.getItem('ov_console_connection_profiles')).toBeNull()
+})
+
+it('shows the setup wizard at /config even after selecting a workspace', () => {
+  localStorage.clear()
+  sessionStorage.setItem('ov_studio_workspace_selected', 'selected')
+  bootstrap.pathname = '/config'
+  render(<AppShell>{null}</AppShell>)
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(
+    'Choose a workspace',
+  )
 })
 
 describe('gateway navigation', () => {

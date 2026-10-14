@@ -10,12 +10,16 @@ export default {
 
   steps: '选择工作区',
   workspace: '选择 Workspace',
-  workspaceHint: '先选择开源或火山工作区，再验证连接。',
+  workspaceHint: '选择已有连接，或添加新连接。',
   savedWorkspaces: '已有连接',
+  connectionChoice: '选择连接',
+  newConnection: '添加新服务地址',
+  newAddressHint: '输入有效的 HTTP 或 HTTPS 地址后可继续。',
+  hostedEndpoint: '服务地址',
   preferences: '基础偏好',
   connection: '连接服务',
   welcome: '欢迎使用\nOpenViking Studio',
-  welcomeDescription: '选择工作区和已有连接，再配置语言与外观。',
+  welcomeDescription: '选择已有连接或添加新连接，再配置语言与外观。',
   connectionDescription: '配置服务连接。验证成功后，将显示对应的工作区和功能。',
   language: '语言',
   theme: '外观',
@@ -34,5 +38,17 @@ export default {
   keyHelp: '填写服务提供的 API Key。开源开发模式无需填写。',
   hostedKeyHelp: '填写火山服务的用户 API Key，以访问当前用户的记忆。',
   advanced: '开源高级连接配置（选填）',
+  loadUsers: '读取此账号的用户',
+  loadingUsers: '正在读取用户…',
+  chooseUser: '选择用户',
+  noUsers: '该账号下没有可选用户，请检查账号 ID 或手动填写用户 ID。',
+  usersDevMode:
+    '当前服务为开发模式，不提供用户列表。请手动填写账号和用户 ID；服务会按这两个值访问对应空间。',
+  usersNeedKey:
+    '此服务需要 Root 或管理员 API 密钥才能列出用户。填入密钥后再试。',
+  usersUnavailable:
+    '无法读取用户列表，请检查管理密钥和账号，或手动填写用户 ID。',
+  userSelectionHint:
+    '填写管理密钥后可读取用户列表；开发模式或无管理权限时，请手动填写账号和用户 ID。API Key 模式下还需要对应用户的密钥。',
   storageError: '无法保存配置，请允许此站点使用浏览器本地存储后重试。',
 }

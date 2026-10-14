@@ -9,6 +9,7 @@ import {
 } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
 
 import { Route } from './route'
 
@@ -118,6 +119,38 @@ it('preserves the active connection when an invalid address is saved from the de
     expect.objectContaining({ baseUrl: 'https://proxy.example/openviking' }),
   )
   expect(reconnect).toHaveBeenCalledTimes(1)
+  client.clear()
+})
+
+it('uses the hosted default address when the Base UI service selector changes', async () => {
+  const user = userEvent.setup()
+  const client = new QueryClient()
+  const Settings = Route.options.component as ComponentType
+  render(
+    <QueryClientProvider client={client}>
+      <Settings />
+    </QueryClientProvider>,
+  )
+  const serviceType = screen.getByRole('combobox', {
+    name: 'studio:serviceType',
+  })
+  const url = screen.getByLabelText<HTMLInputElement>('fields.baseUrl')
+  fireEvent.change(url, { target: { value: 'https://open-source.example/ov' } })
+  await user.click(serviceType)
+  await user.click(
+    screen.getByRole('option', { name: 'studio:providers.volcengine' }),
+  )
+  expect(url.value).toBe(
+    'https://api.vikingdb.cn-beijing.volces.com/openviking',
+  )
+  expect(url.readOnly).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'studio:profiles.save' }))
+  expect(saveConnection).toHaveBeenCalledWith(
+    expect.objectContaining({
+      serviceSelection: 'volcengine',
+      baseUrl: 'https://api.vikingdb.cn-beijing.volces.com/openviking',
+    }),
+  )
   client.clear()
 })
 

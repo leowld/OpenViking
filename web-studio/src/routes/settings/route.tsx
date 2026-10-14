@@ -23,9 +23,17 @@ import {
   FieldLabel,
 } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
 import { canEditStudioConfiguration } from '#/lib/studio-permissions'
 import { resolveConfiguredServiceProvider } from '#/lib/studio-service'
 import { isValidConnectionUrl } from '#/lib/connection/profiles'
+import { CLOUD_SETUP_URL } from '#/lib/connection/onboarding'
 import { useStudioService } from '#/hooks/use-studio-service'
 import { useAppConnection } from '#/hooks/use-app-connection'
 import { useConnectionProbe } from '#/hooks/use-connection-probe'
@@ -314,6 +322,14 @@ function ConnectionSettingsPanel() {
     useAppConnection()
   const [draft, setDraft] = React.useState<ConnectionDraft>(connection)
   const previousConnectionRef = React.useRef({ ...connection })
+  const openSourceUrlRef = React.useRef(
+    resolveConfiguredServiceProvider(
+      connection.baseUrl,
+      connection.serviceSelection,
+    ) === 'opensource'
+      ? connection.baseUrl
+      : '',
+  )
   const [saveError, setSaveError] = React.useState(false)
   const canEditControlCredential =
     resolveConfiguredServiceProvider(draft.baseUrl, draft.serviceSelection) ===
@@ -327,6 +343,14 @@ function ConnectionSettingsPanel() {
       previous.apiKey !== connection.apiKey ||
       previous.adminApiKey !== connection.adminApiKey
     ) {
+      if (
+        resolveConfiguredServiceProvider(
+          connection.baseUrl,
+          connection.serviceSelection,
+        ) === 'opensource'
+      ) {
+        openSourceUrlRef.current = connection.baseUrl
+      }
       setDraft(connection)
       setSaveError(false)
     } else if (
@@ -352,6 +376,23 @@ function ConnectionSettingsPanel() {
   function updateDraft(next: Partial<ConnectionDraft>): void {
     setSaveError(false)
     setDraft((current) => ({ ...current, ...next }))
+  }
+
+  function selectServiceType(selection: 'opensource' | 'volcengine'): void {
+    if (
+      resolveConfiguredServiceProvider(
+        draft.baseUrl,
+        draft.serviceSelection,
+      ) === 'opensource' &&
+      selection === 'volcengine'
+    ) {
+      openSourceUrlRef.current = draft.baseUrl
+    }
+    updateDraft({
+      serviceSelection: selection,
+      baseUrl:
+        selection === 'volcengine' ? CLOUD_SETUP_URL : openSourceUrlRef.current,
+    })
   }
 
   const resolvedIdentity =
@@ -434,26 +475,34 @@ function ConnectionSettingsPanel() {
               {t('studio:serviceType')}
             </FieldLabel>
             <FieldContent>
-              <select
-                id="settings-service-type"
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={draft.serviceSelection ?? 'auto'}
-                onChange={(event) =>
-                  updateDraft({
-                    serviceSelection: event.target.value as
-                      | 'auto'
-                      | 'opensource'
-                      | 'volcengine',
-                  })
+              <Select
+                value={
+                  draft.serviceSelection === 'auto'
+                    ? resolveConfiguredServiceProvider(draft.baseUrl)
+                    : draft.serviceSelection
+                }
+                onValueChange={(value) =>
+                  selectServiceType(value as 'opensource' | 'volcengine')
                 }
               >
-                <option value="opensource">
-                  {t('studio:providers.opensource')}
-                </option>
-                <option value="volcengine">
-                  {t('studio:providers.volcengine')}
-                </option>
-              </select>
+                <SelectTrigger
+                  id="settings-service-type"
+                  className="w-full bg-background"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  align="start"
+                  className="w-[var(--anchor-width)]"
+                >
+                  <SelectItem value="opensource">
+                    {t('studio:providers.opensource')}
+                  </SelectItem>
+                  <SelectItem value="volcengine">
+                    {t('studio:providers.volcengine')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
               <FieldDescription>
                 {t('studio:profiles.typeHint')}
               </FieldDescription>
@@ -486,6 +535,12 @@ function ConnectionSettingsPanel() {
                 value={draft.baseUrl}
                 onChange={(event) =>
                   updateDraft({ baseUrl: event.target.value })
+                }
+                readOnly={
+                  resolveConfiguredServiceProvider(
+                    draft.baseUrl,
+                    draft.serviceSelection,
+                  ) === 'volcengine'
                 }
                 placeholder={t('placeholders.baseUrl')}
                 inputMode="url"

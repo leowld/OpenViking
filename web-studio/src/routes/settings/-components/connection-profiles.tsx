@@ -28,6 +28,29 @@ const PROFILE_FIELDS = [
   'userId',
 ] as const
 
+export function visibleConnectionProfiles(
+  profiles: ConnectionProfile[],
+  activeProfileId: string,
+): ConnectionProfile[] {
+  const seen = new Set<string>()
+  return [...profiles]
+    .sort((a, b) =>
+      a.id === activeProfileId ? -1 : b.id === activeProfileId ? 1 : 0,
+    )
+    .filter((profile) => {
+      const connection = normalizeProfileConnection(profile.connection)
+      const identity = [
+        connection.serviceSelection,
+        connection.baseUrl.trim().replace(/\/+$/, ''),
+        connection.accountId,
+        connection.userId,
+      ].join('\u0000')
+      if (seen.has(identity)) return false
+      seen.add(identity)
+      return true
+    })
+}
+
 export function ConnectionProfilesList() {
   const { t } = useTranslation(['studio', 'settings'])
   const {
@@ -90,46 +113,55 @@ export function ConnectionProfilesList() {
         </CardHeader>
         <CardContent className="grid gap-3">
           <p className="text-sm text-muted-foreground">{t('profiles.hint')}</p>
-          {profiles.map((profile) => (
-            <div
-              key={profile.id}
-              className="flex min-w-0 flex-col items-start justify-between gap-3 rounded-md border p-3 sm:flex-row sm:items-center"
-            >
-              <div className="w-full min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{profile.name}</span>
-                  <Badge variant="outline">
-                    {t(`providers.${profile.connection.serviceSelection}`)}
-                  </Badge>
-                  {profile.id === activeProfileId && (
-                    <Badge>{t('profiles.active')}</Badge>
-                  )}
+          {visibleConnectionProfiles(profiles, activeProfileId).map(
+            (profile) => (
+              <div
+                key={profile.id}
+                className="flex min-w-0 flex-col items-start justify-between gap-3 rounded-md border p-3 sm:flex-row sm:items-center"
+              >
+                <div className="w-full min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{profile.name}</span>
+                    <span
+                      className="font-mono text-xs text-muted-foreground"
+                      title={`${t('profiles.fields.accountId')}: ${profile.connection.accountId} · ${t('profiles.fields.userId')}: ${profile.connection.userId}`}
+                    >
+                      [{profile.connection.accountId}/
+                      {profile.connection.userId}]
+                    </span>
+                    <Badge variant="outline">
+                      {t(`providers.${profile.connection.serviceSelection}`)}
+                    </Badge>
+                    {profile.id === activeProfileId && (
+                      <Badge>{t('profiles.active')}</Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 break-all text-sm text-muted-foreground">
+                    {profile.connection.baseUrl}
+                  </p>
                 </div>
-                <p className="mt-1 break-all text-sm text-muted-foreground">
-                  {profile.connection.baseUrl}
-                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={profile.id === activeProfileId}
+                    onClick={() => activateProfile(profile.id)}
+                  >
+                    {t('profiles.activate')}
+                  </Button>
+                  <Button variant="outline" onClick={() => openEditor(profile)}>
+                    {t('profiles.edit')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={profile.id === activeProfileId}
+                    onClick={() => setDeleting(profile)}
+                  >
+                    {t('profiles.delete')}
+                  </Button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  disabled={profile.id === activeProfileId}
-                  onClick={() => activateProfile(profile.id)}
-                >
-                  {t('profiles.activate')}
-                </Button>
-                <Button variant="outline" onClick={() => openEditor(profile)}>
-                  {t('profiles.edit')}
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={profile.id === activeProfileId}
-                  onClick={() => setDeleting(profile)}
-                >
-                  {t('profiles.delete')}
-                </Button>
-              </div>
-            </div>
-          ))}
+            ),
+          )}
         </CardContent>
       </Card>
       <Dialog
