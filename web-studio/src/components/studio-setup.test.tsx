@@ -95,3 +95,12 @@ it('keeps the user in setup on verification failure', async () => {
   )
   expect(done).not.toHaveBeenCalled()
 })
+it('selects a workspace before connection and starts hosted setup with its endpoint', () => {
+  render(<StudioSetup onComplete={vi.fn()} />)
+  fireEvent.click(screen.getByLabelText('studio:providers.volcengine'))
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  expect(
+    screen.getByLabelText<HTMLInputElement>('settings:fields.baseUrl').value,
+  ).toBe('https://api.vikingdb.cn-beijing.volces.com/openviking')
+  expect(screen.getByText('hostedKeyHelp')).toBeTruthy()
+})

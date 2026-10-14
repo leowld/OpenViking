@@ -25,6 +25,7 @@ import {
   CLOUD_SETUP_URL,
   completeStudioSetup,
   markStudioSetupPending,
+  savedSetupConnections,
   verifyStudioSetup,
 } from '#/lib/studio-onboarding'
 import { isValidConnectionUrl } from '#/lib/connection-profiles'
@@ -49,15 +50,33 @@ export function StudioSetup({
   const { t, i18n } = useTranslation(['onboarding', 'studio', 'settings'])
   const { theme, setTheme } = useTheme()
   const [step, setStep] = useState(0)
-  const [draft, setDraft] = useState<ConnectionDraft>({
-    serviceSelection: 'opensource',
-    baseUrl: '',
-    apiKey: '',
-    adminApiKey: '',
-    accountId: 'default',
-    userId: 'default',
+  const [savedConnections] = useState(savedSetupConnections)
+  const [draft, setDraft] = useState<ConnectionDraft>(() => {
+    const activeId = (() => {
+      try {
+        return JSON.parse(
+          localStorage.getItem('ov_console_connection_profiles') || '{}',
+        ).activeId
+      } catch {
+        return ''
+      }
+    })()
+    const selected = savedConnections.find((profile) => profile.id === activeId)
+    if (selected) return selected.connection
+    if (savedConnections.length) return savedConnections[0].connection
+    return {
+      serviceSelection: 'opensource',
+      baseUrl: import.meta.env.VITE_OV_BASE_URL || '',
+      apiKey: import.meta.env.VITE_OV_API_KEY || '',
+      adminApiKey: import.meta.env.VITE_OV_ADMIN_API_KEY || '',
+      accountId: import.meta.env.VITE_OV_ACCOUNT || 'default',
+      userId: import.meta.env.VITE_OV_USER || 'default',
+    }
   })
   const [verified, setVerified] = useState<ConnectionDraft | null>(null)
+  const providerConnections = savedConnections.filter(
+    (profile) => profile.connection.serviceSelection === draft.serviceSelection,
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const abortRef = useRef<AbortController | null>(null)
@@ -152,7 +171,7 @@ export function StudioSetup({
               className="mt-5 flex gap-6 lg:mt-12 lg:flex-col lg:gap-7"
               aria-label={t('steps')}
             >
-              {[t('preferences'), t('connection')].map((label, index) => (
+              {[t('workspace'), t('connection')].map((label, index) => (
                 <li
                   key={index}
                   aria-current={step === index ? 'step' : undefined}
@@ -175,7 +194,7 @@ export function StudioSetup({
                       {label}
                     </p>
                     <p className="mt-1 hidden text-xs leading-5 text-muted-foreground lg:block">
-                      {t(index === 0 ? 'preferencesHint' : 'connectionHint')}
+                      {t(index === 0 ? 'workspaceHint' : 'connectionHint')}
                     </p>
                   </div>
                 </li>
@@ -185,15 +204,79 @@ export function StudioSetup({
           <Card className="gap-0 overflow-hidden rounded-2xl border-border/70 bg-card py-0 shadow-sm">
             <CardHeader className="gap-2 border-b border-border/70 px-6 py-4 sm:px-8 sm:py-6">
               <CardTitle className="text-lg font-semibold tracking-tight">
-                {step === 0 ? t('preferences') : t('connection')}
+                {step === 0 ? t('workspace') : t('connection')}
               </CardTitle>
               <CardDescription className="text-sm leading-6">
-                {t(step === 0 ? 'preferencesHint' : 'connectionHint')}
+                {t(step === 0 ? 'workspaceHint' : 'connectionHint')}
               </CardDescription>
             </CardHeader>
             <CardContent className="px-6 py-5 sm:px-8 sm:py-7">
               {step === 0 ? (
                 <div className="space-y-5 sm:space-y-6">
+                  <fieldset className="space-y-3">
+                    <legend className="text-sm font-medium">
+                      {t('studio:serviceType')}
+                    </legend>
+                    <div className="grid grid-cols-2 gap-3">
+                      {PROVIDERS.map(([provider, Icon]) => (
+                        <label
+                          key={provider}
+                          className="flex min-h-16 cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-muted/40 has-checked:border-foreground has-checked:bg-muted/40 has-focus-visible:ring-2 has-focus-visible:ring-ring"
+                        >
+                          <input
+                            className="sr-only"
+                            type="radio"
+                            name="provider"
+                            value={provider}
+                            checked={draft.serviceSelection === provider}
+                            onChange={() =>
+                              update({
+                                serviceSelection: provider,
+                                baseUrl:
+                                  provider === 'volcengine'
+                                    ? CLOUD_SETUP_URL
+                                    : '',
+                                apiKey: '',
+                                adminApiKey: '',
+                                accountId: 'default',
+                                userId: 'default',
+                              })
+                            }
+                          />
+                          <Icon
+                            aria-hidden="true"
+                            className="size-4 shrink-0 text-muted-foreground"
+                          />
+                          {t(`studio:providers.${provider}`)}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  {providerConnections.length ? (
+                    <fieldset className="space-y-2">
+                      <legend className="text-sm font-medium">
+                        {t('savedWorkspaces')}
+                      </legend>
+                      {providerConnections.map((profile) => (
+                        <button
+                          key={profile.id}
+                          type="button"
+                          className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-3 text-left text-sm hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => update(profile.connection)}
+                        >
+                          <span className="min-w-0 truncate">
+                            {profile.name} · {profile.connection.baseUrl}
+                          </span>
+                          {draft.baseUrl === profile.connection.baseUrl ? (
+                            <CheckIcon
+                              aria-hidden="true"
+                              className="size-4 shrink-0"
+                            />
+                          ) : null}
+                        </button>
+                      ))}
+                    </fieldset>
+                  ) : null}
                   <fieldset className="space-y-3">
                     <legend className="text-sm font-medium">
                       {t('language')}
@@ -274,45 +357,6 @@ export function StudioSetup({
                   className="space-y-5"
                 >
                   <fieldset disabled={busy} className="space-y-4">
-                    <fieldset className="space-y-3">
-                      <legend className="text-sm font-medium">
-                        {t('studio:serviceType')}
-                      </legend>
-                      <div className="grid grid-cols-2 gap-3">
-                        {PROVIDERS.map(([provider, Icon]) => (
-                          <label
-                            key={provider}
-                            className="flex min-h-14 cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-muted/40 has-checked:border-foreground has-checked:bg-muted/40 has-focus-visible:ring-2 has-focus-visible:ring-ring"
-                          >
-                            <input
-                              className="sr-only"
-                              type="radio"
-                              name="provider"
-                              value={provider}
-                              checked={draft.serviceSelection === provider}
-                              onChange={() =>
-                                update({
-                                  serviceSelection: provider,
-                                  baseUrl:
-                                    provider === 'volcengine' && !draft.baseUrl
-                                      ? CLOUD_SETUP_URL
-                                      : draft.baseUrl,
-                                  adminApiKey:
-                                    provider === 'volcengine'
-                                      ? ''
-                                      : draft.adminApiKey,
-                                })
-                              }
-                            />
-                            <Icon
-                              aria-hidden="true"
-                              className="size-4 shrink-0 text-muted-foreground"
-                            />
-                            {t(`studio:providers.${provider}`)}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
                     <label
                       className="grid gap-2 text-sm font-medium"
                       htmlFor="setup-url"
@@ -354,7 +398,11 @@ export function StudioSetup({
                       />
                     </label>
                     <p className="text-sm text-muted-foreground">
-                      {t('keyHelp')}
+                      {t(
+                        draft.serviceSelection === 'volcengine'
+                          ? 'hostedKeyHelp'
+                          : 'keyHelp',
+                      )}
                     </p>
                     {draft.serviceSelection === 'opensource' ? (
                       <details>

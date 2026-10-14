@@ -10,6 +10,7 @@ import {
 } from './connection-profiles'
 
 export const SETUP_STORAGE_KEY = 'ov_studio_setup'
+export const WORKSPACE_SESSION_KEY = 'ov_studio_workspace_selected'
 export class StudioSetupError extends Error {
   constructor(public readonly code: 'invalidService' | 'keyRequired') {
     super(code)
@@ -36,40 +37,55 @@ function hasConnection(value: unknown, completed = false): boolean {
 
 export function needsStudioSetup(): boolean {
   try {
-    const state = localStorage.getItem(SETUP_STORAGE_KEY)
-    if (state === 'pending') return true
-    const profiles: unknown = JSON.parse(
+    return sessionStorage.getItem(WORKSPACE_SESSION_KEY) !== 'selected'
+  } catch {
+    return true
+  }
+}
+
+export function savedSetupConnections(): Array<{
+  id: string
+  name: string
+  connection: ConnectionDraft
+}> {
+  try {
+    const saved: unknown = JSON.parse(
       localStorage.getItem(PROFILES_STORAGE_KEY) || 'null',
     )
     if (
-      profiles &&
-      typeof profiles === 'object' &&
-      'profiles' in profiles &&
-      Array.isArray(profiles.profiles) &&
-      profiles.profiles.some(
-        (p) =>
-          p &&
-          typeof p === 'object' &&
-          hasConnection(p.connection, state === 'complete'),
-      )
+      saved &&
+      typeof saved === 'object' &&
+      'profiles' in saved &&
+      Array.isArray(saved.profiles)
     )
-      return false
-    if (
-      hasConnection(
-        JSON.parse(localStorage.getItem('ov_console_connection') || 'null'),
-        state === 'complete',
+      return saved.profiles.filter(
+        (
+          profile,
+        ): profile is {
+          id: string
+          name: string
+          connection: ConnectionDraft
+        } =>
+          profile &&
+          typeof profile.id === 'string' &&
+          typeof profile.name === 'string' &&
+          hasConnection(profile.connection, true),
       )
+    const legacy: unknown = JSON.parse(
+      localStorage.getItem('ov_console_connection') || 'null',
     )
-      return false
-    if (sessionStorage.getItem('ov_console_api_key')?.trim()) return false
+    if (hasConnection(legacy))
+      return [
+        {
+          id: 'default',
+          name: 'OpenViking',
+          connection: normalizeProfileConnection(legacy as ConnectionDraft),
+        },
+      ]
   } catch {
-    /* Malformed or unavailable storage is handled by the setup screen. */
+    /* An invalid saved profile must not block a new connection. */
   }
-  return !(
-    import.meta.env.VITE_OV_BASE_URL ||
-    import.meta.env.VITE_OV_API_KEY ||
-    import.meta.env.VITE_OV_ADMIN_API_KEY
-  )
+  return []
 }
 
 export function markStudioSetupPending() {
@@ -178,13 +194,25 @@ export function studioSetupDestination(
 
 export function completeStudioSetup(connection: ConnectionDraft, name: string) {
   // Do not enter the workspace if the browser cannot retain this connection.
+  const saved = savedSetupConnections()
+  const existing = saved.find(
+    (profile) =>
+      profile.connection.baseUrl === connection.baseUrl &&
+      profile.connection.serviceSelection === connection.serviceSelection,
+  )
+  const id = existing?.id ?? crypto.randomUUID()
   localStorage.setItem(
     PROFILES_STORAGE_KEY,
     JSON.stringify({
-      activeId: 'default',
-      profiles: [{ id: 'default', name, connection }],
+      activeId: id,
+      profiles: existing
+        ? saved.map((profile) =>
+            profile.id === id ? { ...profile, connection } : profile,
+          )
+        : [...saved, { id, name, connection }],
     }),
   )
   localStorage.setItem('ov_console_connection', JSON.stringify(connection))
   localStorage.setItem(SETUP_STORAGE_KEY, 'complete')
+  sessionStorage.setItem(WORKSPACE_SESSION_KEY, 'selected')
 }

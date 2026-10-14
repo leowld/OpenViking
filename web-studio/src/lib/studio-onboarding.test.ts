@@ -4,6 +4,7 @@ import {
   completeStudioSetup,
   needsStudioSetup,
   SETUP_STORAGE_KEY,
+  WORKSPACE_SESSION_KEY,
   verifyStudioSetup,
   studioSetupDestination,
 } from './studio-onboarding'
@@ -39,7 +40,7 @@ beforeEach(() => {
   vi.mocked(createClient).mockClear()
 })
 describe('first-use detection', () => {
-  it('starts setup for an empty browser and retains unfinished setup on reload', () => {
+  it('starts setup for a new tab and retains unfinished setup on reload', () => {
     expect(needsStudioSetup()).toBe(true)
     localStorage.setItem(SETUP_STORAGE_KEY, 'pending')
     localStorage.setItem(
@@ -48,15 +49,15 @@ describe('first-use detection', () => {
     )
     expect(needsStudioSetup()).toBe(true)
   })
-  it('keeps existing profile and legacy users out of the wizard', () => {
+  it('shows workspace choice even when a profile or legacy connection exists', () => {
     localStorage.setItem('ov_console_connection', JSON.stringify(draft))
-    expect(needsStudioSetup()).toBe(false)
+    expect(needsStudioSetup()).toBe(true)
     localStorage.clear()
     localStorage.setItem(
       PROFILES_STORAGE_KEY,
       JSON.stringify({ profiles: [{ connection: draft }] }),
     )
-    expect(needsStudioSetup()).toBe(false)
+    expect(needsStudioSetup()).toBe(true)
   })
   it('does not treat an automatically persisted empty same-origin connection as configured', () => {
     localStorage.setItem(
@@ -71,9 +72,32 @@ describe('first-use detection', () => {
       'Development',
     )
     expect(needsStudioSetup()).toBe(false)
+    expect(sessionStorage.getItem(WORKSPACE_SESSION_KEY)).toBe('selected')
     localStorage.removeItem(PROFILES_STORAGE_KEY)
     localStorage.removeItem('ov_console_connection')
+    sessionStorage.removeItem(WORKSPACE_SESSION_KEY)
     expect(needsStudioSetup()).toBe(true)
+  })
+  it('retains other saved workspaces when selecting a new connection', () => {
+    localStorage.setItem(
+      PROFILES_STORAGE_KEY,
+      JSON.stringify({
+        activeId: 'one',
+        profiles: [{ id: 'one', name: 'Original', connection: draft }],
+      }),
+    )
+    completeStudioSetup(
+      {
+        ...draft,
+        serviceSelection: 'volcengine',
+        baseUrl: 'https://hosted.test',
+      },
+      'Volcengine',
+    )
+    const saved = JSON.parse(localStorage.getItem(PROFILES_STORAGE_KEY) || '{}')
+    expect(saved.profiles).toHaveLength(2)
+    expect(saved.profiles[0].name).toBe('Original')
+    expect(saved.profiles[1].connection.serviceSelection).toBe('volcengine')
   })
 })
 describe('verification', () => {
