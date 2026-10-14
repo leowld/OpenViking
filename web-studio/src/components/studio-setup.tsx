@@ -27,8 +27,8 @@ import {
   markStudioSetupPending,
   savedSetupConnections,
   verifyStudioSetup,
-} from '#/lib/studio-onboarding'
-import { isValidConnectionUrl } from '#/lib/connection-profiles'
+} from '#/lib/connection/onboarding'
+import { isValidConnectionUrl } from '#/lib/connection/profiles'
 import type { ConnectionDraft } from '#/hooks/use-app-connection'
 
 const LANGUAGES = [
@@ -73,6 +73,9 @@ export function StudioSetup({
       userId: import.meta.env.VITE_OV_USER || 'default',
     }
   })
+  const providerDraftsRef = useRef<
+    Partial<Record<(typeof PROVIDERS)[number][0], ConnectionDraft>>
+  >({})
   const [verified, setVerified] = useState<ConnectionDraft | null>(null)
   const providerConnections = savedConnections.filter(
     (profile) => profile.connection.serviceSelection === draft.serviceSelection,
@@ -93,6 +96,24 @@ export function StudioSetup({
     : 'en'
   function update(next: Partial<ConnectionDraft>) {
     setDraft((value) => ({ ...value, ...next }))
+    setVerified(null)
+    setError('')
+  }
+  function switchProvider(provider: (typeof PROVIDERS)[number][0]) {
+    const current =
+      draft.serviceSelection === 'volcengine' ? 'volcengine' : 'opensource'
+    if (provider === current) return
+    providerDraftsRef.current[current] = draft
+    setDraft(
+      providerDraftsRef.current[provider] ?? {
+        serviceSelection: provider,
+        baseUrl: provider === 'volcengine' ? CLOUD_SETUP_URL : '',
+        apiKey: '',
+        adminApiKey: '',
+        accountId: 'default',
+        userId: 'default',
+      },
+    )
     setVerified(null)
     setError('')
   }
@@ -142,8 +163,8 @@ export function StudioSetup({
     }
   }
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-5 py-6 text-foreground sm:px-8 sm:py-16">
-      <div className="w-full max-w-5xl">
+    <main className="flex h-svh flex-col items-center overflow-y-auto bg-background px-5 py-6 text-foreground sm:px-8 sm:py-16">
+      <div className="my-auto w-full max-w-5xl shrink-0">
         <div className="mb-6 flex items-center gap-3 lg:mb-14">
           <img src="/ov-logo.png" alt="" className="size-10 rounded-xl" />
           <span className="text-base font-semibold tracking-tight">
@@ -229,19 +250,7 @@ export function StudioSetup({
                             name="provider"
                             value={provider}
                             checked={draft.serviceSelection === provider}
-                            onChange={() =>
-                              update({
-                                serviceSelection: provider,
-                                baseUrl:
-                                  provider === 'volcengine'
-                                    ? CLOUD_SETUP_URL
-                                    : '',
-                                apiKey: '',
-                                adminApiKey: '',
-                                accountId: 'default',
-                                userId: 'default',
-                              })
-                            }
+                            onChange={() => switchProvider(provider)}
                           />
                           <Icon
                             aria-hidden="true"

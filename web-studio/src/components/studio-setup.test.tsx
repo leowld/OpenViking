@@ -29,7 +29,7 @@ vi.mock('react-i18next', async (original) => ({
     },
   }),
 }))
-vi.mock('#/lib/studio-onboarding', async (original) => ({
+vi.mock('#/lib/connection/onboarding', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   markStudioSetupPending: vi.fn(),
   verifyStudioSetup: mocks.verify,
@@ -103,4 +103,35 @@ it('selects a workspace before connection and starts hosted setup with its endpo
     screen.getByLabelText<HTMLInputElement>('settings:fields.baseUrl').value,
   ).toBe('https://api.vikingdb.cn-beijing.volces.com/openviking')
   expect(screen.getByText('hostedKeyHelp')).toBeTruthy()
+})
+it('keeps each workspace draft isolated when switching on the first step', () => {
+  render(<StudioSetup onComplete={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  const url = () =>
+    screen.getByLabelText<HTMLInputElement>('settings:fields.baseUrl')
+  const key = () =>
+    screen.getByLabelText<HTMLInputElement>('settings:fields.userApiKey')
+  fireEvent.change(url(), { target: { value: 'http://oss.test' } })
+  fireEvent.change(key(), { target: { value: 'synthetic-oss' } })
+  fireEvent.click(screen.getByRole('button', { name: 'back' }))
+  fireEvent.click(screen.getByLabelText('studio:providers.volcengine'))
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  expect(url().value).toBe(
+    'https://api.vikingdb.cn-beijing.volces.com/openviking',
+  )
+  expect(key().value).toBe('')
+  fireEvent.change(url(), {
+    target: { value: 'https://cloud-proxy.test/openviking' },
+  })
+  fireEvent.change(key(), { target: { value: 'synthetic-cloud' } })
+  fireEvent.click(screen.getByRole('button', { name: 'back' }))
+  fireEvent.click(screen.getByLabelText('studio:providers.opensource'))
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  expect(url().value).toBe('http://oss.test')
+  expect(key().value).toBe('synthetic-oss')
+  fireEvent.click(screen.getByRole('button', { name: 'back' }))
+  fireEvent.click(screen.getByLabelText('studio:providers.volcengine'))
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  expect(url().value).toBe('https://cloud-proxy.test/openviking')
+  expect(key().value).toBe('synthetic-cloud')
 })
