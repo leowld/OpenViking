@@ -295,6 +295,25 @@ describe('synchronizeConnectionRuntime', () => {
       userId: 'bob',
     })
   })
+
+  it('passes the selected identity to a keyless development service', () => {
+    synchronizeConnectionRuntime(
+      {
+        serviceSelection: 'opensource',
+        accountId: 'work-memory',
+        userId: 'alice',
+        apiKey: '',
+        adminApiKey: '',
+        baseUrl: 'http://127.0.0.1:1933',
+      },
+      'dev',
+    )
+    expect(ovClient.getConnection()).toMatchObject({
+      accountId: 'work-memory',
+      userId: 'alice',
+      identityHeaders: true,
+    })
+  })
 })
 
 describe('resolveConnectionRoleProbeState', () => {

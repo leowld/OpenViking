@@ -313,7 +313,7 @@ function applyConnection(
     accountId: connection.accountId,
     adminApiKey: connection.adminApiKey,
     apiKey: connection.apiKey,
-    identityHeaders: serverMode === 'trusted',
+    identityHeaders: serverMode === 'trusted' || serverMode === 'dev',
     userId: connection.userId,
   })
 }
