@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from 'next-themes'
 import {
@@ -87,6 +87,9 @@ export function StudioSetup({
   const [error, setError] = useState('')
   const abortRef = useRef<AbortController | null>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const cardAnimationRef = useRef<Animation | null>(null)
+  const previousCardHeightRef = useRef<number | null>(null)
   useEffect(() => {
     markStudioSetupPending()
     return () => abortRef.current?.abort()
@@ -94,6 +97,34 @@ export function StudioSetup({
   useEffect(() => {
     headingRef.current?.focus()
   }, [step])
+  useLayoutEffect(() => {
+    const card = cardRef.current
+    const previousHeight = previousCardHeightRef.current
+    previousCardHeightRef.current = null
+    if (!card || previousHeight === null) return
+
+    const nextHeight = card.getBoundingClientRect().height
+    if (
+      previousHeight === nextHeight ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+      return
+
+    cardAnimationRef.current = card.animate(
+      [{ height: `${previousHeight}px` }, { height: `${nextHeight}px` }],
+      { duration: 360, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+    )
+    cardAnimationRef.current.onfinish = () => {
+      cardAnimationRef.current = null
+    }
+  }, [step])
+  function changeStep(nextStep: number) {
+    previousCardHeightRef.current =
+      cardRef.current?.getBoundingClientRect().height ?? null
+    cardAnimationRef.current?.cancel()
+    cardAnimationRef.current = null
+    setStep(nextStep)
+  }
   const language = (i18n.resolvedLanguage ?? i18n.language).startsWith('zh')
     ? 'zh-CN'
     : 'en'
@@ -168,8 +199,8 @@ export function StudioSetup({
     }
   }
   return (
-    <main className="flex h-svh flex-col items-center overflow-y-auto bg-background px-5 py-6 text-foreground sm:px-8 sm:py-8">
-      <div className="my-auto w-full max-w-5xl shrink-0">
+    <main className="flex h-svh flex-col items-center overflow-y-auto bg-background px-5 py-6 text-foreground sm:px-8 sm:py-8 lg:pt-[max(2rem,calc((100svh-52rem)/2))]">
+      <div className="w-full max-w-5xl shrink-0">
         <div className="mb-6 flex items-center gap-3 lg:mb-14">
           <img src="/ov-logo.png" alt="" className="size-10 rounded-xl" />
           <span className="text-base font-semibold tracking-tight">
@@ -237,7 +268,10 @@ export function StudioSetup({
               ))}
             </ol>
           </header>
-          <Card className="gap-0 overflow-hidden rounded-2xl border-border/70 bg-card py-0 shadow-sm">
+          <Card
+            ref={cardRef}
+            className="gap-0 overflow-hidden rounded-2xl border-border/70 bg-card py-0 shadow-sm"
+          >
             <CardHeader className="gap-2 border-b border-border/70 px-6 py-4 sm:px-8 sm:py-6">
               <CardTitle className="text-lg font-semibold tracking-tight">
                 {step === 0 ? t('workspace') : t('connection')}
@@ -369,7 +403,7 @@ export function StudioSetup({
                   </fieldset>
                   <Button
                     className="mt-2 min-h-11 w-full rounded-lg"
-                    onClick={() => setStep(1)}
+                    onClick={() => changeStep(1)}
                   >
                     {t('next')}
                     <ArrowRightIcon aria-hidden="true" className="size-4" />
@@ -513,7 +547,7 @@ export function StudioSetup({
                       onClick={() => {
                         abortRef.current?.abort()
                         setBusy(false)
-                        setStep(0)
+                        changeStep(0)
                       }}
                     >
                       <ArrowLeftIcon aria-hidden="true" className="size-4" />
