@@ -168,7 +168,7 @@ export function StudioSetup({
     }
   }
   return (
-    <main className="flex h-svh flex-col items-center overflow-y-auto bg-background px-5 py-6 text-foreground sm:px-8 sm:py-16">
+    <main className="flex h-svh flex-col items-center overflow-y-auto bg-background px-5 py-6 text-foreground sm:px-8 sm:py-8">
       <div className="my-auto w-full max-w-5xl shrink-0">
         <div className="mb-6 flex items-center gap-3 lg:mb-14">
           <img src="/ov-logo.png" alt="" className="size-10 rounded-xl" />
