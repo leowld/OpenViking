@@ -59,6 +59,26 @@ it('combines preferences, applies changes immediately and retains connection fie
     screen.getByLabelText<HTMLInputElement>('settings:fields.userApiKey').value,
   ).toBe('synthetic-key')
 })
+it('keeps advanced fields out of keyboard navigation while collapsed and preserves their values', () => {
+  render(<StudioSetup onComplete={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  const toggle = screen.getByRole('button', { name: 'advanced' })
+  const fields = document.getElementById('setup-advanced-fields')
+  expect(toggle.getAttribute('aria-expanded')).toBe('false')
+  expect(fields?.hasAttribute('inert')).toBe(true)
+  fireEvent.click(toggle)
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  expect(fields?.hasAttribute('inert')).toBe(false)
+  fireEvent.change(screen.getByLabelText('settings:fields.account'), {
+    target: { value: 'team' },
+  })
+  fireEvent.click(toggle)
+  expect(fields?.hasAttribute('inert')).toBe(true)
+  fireEvent.click(toggle)
+  expect(
+    screen.getByLabelText<HTMLInputElement>('settings:fields.account').value,
+  ).toBe('team')
+})
 it('enters only after verification, invalidates verification when fields change, and persists on explicit entry', async () => {
   const done = vi.fn()
   mocks.verify.mockImplementation(async (draft) => draft)

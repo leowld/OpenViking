@@ -5,6 +5,7 @@ import {
   ArrowRightIcon,
   ArrowLeftIcon,
   CheckIcon,
+  ChevronDownIcon,
   CloudIcon,
   ServerIcon,
   Loader2Icon,
@@ -51,6 +52,7 @@ export function StudioSetup({
   const { t, i18n } = useTranslation(['onboarding', 'studio', 'settings'])
   const { theme, setTheme } = useTheme()
   const [step, setStep] = useState(0)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [savedConnections] = useState(savedSetupConnections)
   const [draft, setDraft] = useState<ConnectionDraft>(() => {
     const activeId = (() => {
@@ -199,11 +201,21 @@ export function StudioSetup({
                 <li
                   key={index}
                   aria-current={step === index ? 'step' : undefined}
-                  className="flex items-start gap-3"
+                  className="relative flex items-start gap-3"
                 >
+                  {index === 0 ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-[13px] top-3.5 hidden h-[calc(100%+1.75rem)] w-0.5 overflow-hidden bg-border lg:block"
+                    >
+                      <span
+                        className={`block h-full w-full origin-top bg-foreground transition-transform duration-500 ease-out motion-reduce:transition-none ${step === 1 ? 'scale-y-100' : 'scale-y-0'}`}
+                      />
+                    </span>
+                  ) : null}
                   <span
                     aria-hidden="true"
-                    className={`flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium ${step >= index ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground'}`}
+                    className={`relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium transition-colors duration-300 motion-reduce:transition-none ${step >= index ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground'}`}
                   >
                     {step > index ? (
                       <CheckIcon className="size-3.5" />
@@ -417,36 +429,57 @@ export function StudioSetup({
                       )}
                     </p>
                     {draft.serviceSelection === 'opensource' ? (
-                      <details>
-                        <summary className="cursor-pointer text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+                      <div>
+                        <button
+                          type="button"
+                          aria-expanded={advancedOpen}
+                          aria-controls="setup-advanced-fields"
+                          onClick={() => setAdvancedOpen((open) => !open)}
+                          className="flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        >
+                          <ChevronDownIcon
+                            aria-hidden="true"
+                            className={`size-3 transition-transform duration-300 motion-reduce:transition-none ${advancedOpen ? 'rotate-180' : ''}`}
+                          />
                           {t('advanced')}
-                        </summary>
-                        <div className="mt-3 grid gap-3">
-                          {ADVANCED_FIELDS.map((key) => (
-                            <label
-                              className="grid gap-2 text-sm"
-                              key={key}
-                              htmlFor={`setup-${key}`}
-                            >
-                              {t(
-                                `settings:fields.${key === 'accountId' ? 'account' : key === 'userId' ? 'user' : 'rootApiKey'}`,
-                              )}
-                              <Input
-                                id={`setup-${key}`}
-                                name={key}
-                                type={
-                                  key === 'adminApiKey' ? 'password' : 'text'
-                                }
-                                value={draft[key]}
-                                onChange={(event) =>
-                                  update({ [key]: event.target.value })
-                                }
-                                {...PLAIN_INPUT_PROPS}
-                              />
-                            </label>
-                          ))}
+                        </button>
+                        <div
+                          id="setup-advanced-fields"
+                          aria-hidden={!advancedOpen}
+                          inert={!advancedOpen}
+                          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${advancedOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+                        >
+                          <div className="min-h-0 overflow-hidden">
+                            <div className="grid gap-3 pt-3">
+                              {ADVANCED_FIELDS.map((key) => (
+                                <label
+                                  className="grid gap-2 text-sm"
+                                  key={key}
+                                  htmlFor={`setup-${key}`}
+                                >
+                                  {t(
+                                    `settings:fields.${key === 'accountId' ? 'account' : key === 'userId' ? 'user' : 'rootApiKey'}`,
+                                  )}
+                                  <Input
+                                    id={`setup-${key}`}
+                                    name={key}
+                                    type={
+                                      key === 'adminApiKey'
+                                        ? 'password'
+                                        : 'text'
+                                    }
+                                    value={draft[key]}
+                                    onChange={(event) =>
+                                      update({ [key]: event.target.value })
+                                    }
+                                    {...PLAIN_INPUT_PROPS}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                      </details>
+                      </div>
                     ) : null}
                   </fieldset>
                   {error ? (
