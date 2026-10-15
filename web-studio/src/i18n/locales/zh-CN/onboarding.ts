@@ -14,9 +14,6 @@ export default {
   savedWorkspaces: '已有连接',
   connectionChoice: '选择连接',
   newConnection: '添加新服务地址',
-  newApiKeyConnection: '输入新的 API Key',
-  hostedConnectionHint: '选择已保存的连接，或输入新的 API Key。',
-  savedHostedConnectionHelp: '将使用此浏览器已保存的地址和密钥验证连接。',
   savedConnectionUnavailable:
     '已保存的连接不可用，请重新选择或输入新的 API Key。',
   newAddressHint: '输入有效的 HTTP 或 HTTPS 地址后可继续。',

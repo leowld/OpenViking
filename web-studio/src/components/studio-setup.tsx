@@ -57,26 +57,7 @@ function withoutCredentials(connection: ConnectionDraft): ConnectionDraft {
   return { ...connection, apiKey: '', adminApiKey: '' }
 }
 
-function canReuseSavedConnection(profile: SavedConnection): boolean {
-  return (
-    profile.connection.serviceSelection !== 'volcengine' ||
-    Boolean(profile.connection.apiKey.trim())
-  )
-}
-
-function savedConnectionTitle(
-  profile: SavedConnection,
-  hostedProviderName: string,
-): string {
-  if (profile.connection.serviceSelection === 'volcengine') {
-    const account = profile.connection.accountId.trim()
-    const user = profile.connection.userId.trim()
-    const identity =
-      account === 'default'
-        ? account
-        : [account, user].filter(Boolean).join('/') || profile.name
-    return `${hostedProviderName} · ${identity}`
-  }
+function savedConnectionTitle(profile: SavedConnection): string {
   const identity = [
     profile.connection.accountId,
     profile.connection.userId,
@@ -89,12 +70,12 @@ function savedConnectionTitle(
 function savedConnectionLabel(
   profile: SavedConnection,
   profiles: SavedConnection[],
-  hostedProviderName: string,
 ): string {
-  const title = savedConnectionTitle(profile, hostedProviderName)
+  const title = savedConnectionTitle(profile)
   const sameLabel = profiles.filter(
     (candidate) =>
-      savedConnectionTitle(candidate, hostedProviderName) === title,
+      savedConnectionTitle(candidate) === title &&
+      candidate.connection.baseUrl === profile.connection.baseUrl,
   )
   if (sameLabel.length < 2) return title
   return `${title} (${sameLabel.findIndex((candidate) => candidate.id === profile.id) + 1})`
@@ -119,7 +100,6 @@ export function StudioSetup({
   onComplete: (connection: ConnectionDraft) => void
 }) {
   const { t, i18n } = useTranslation(['onboarding', 'studio', 'settings'])
-  const hostedProviderName = t('studio:providers.volcengine')
   const { theme, setTheme } = useTheme()
   const [step, setStep] = useState(0)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -172,19 +152,17 @@ export function StudioSetup({
         return true
       })
   })
-  const initialProfile = savedConnections.find(canReuseSavedConnection)
-  const [selectedConnectionId, setSelectedConnectionId] = useState(
-    () => initialProfile?.id ?? NEW_CONNECTION,
+  const initialProfile = savedConnections.at(0)
+  const [selectedConnectionId, setSelectedConnectionId] = useState(() =>
+    initialProfile?.connection.serviceSelection === 'opensource'
+      ? initialProfile.id
+      : NEW_CONNECTION,
   )
   const [draft, setDraft] = useState<ConnectionDraft>(() => {
     if (initialProfile) {
       return withoutCredentials(initialProfile.connection)
     }
-    return newConnectionDraft(
-      savedConnections[0]?.connection.serviceSelection === 'volcengine'
-        ? 'volcengine'
-        : 'opensource',
-    )
+    return newConnectionDraft('opensource')
   })
   const newDraftsRef = useRef<
     Partial<Record<(typeof PROVIDERS)[number][0], ConnectionDraft>>
@@ -194,22 +172,16 @@ export function StudioSetup({
   >({})
   const [verified, setVerified] = useState<ConnectionDraft | null>(null)
   const providerConnections = savedConnections.filter(
-    (profile) =>
-      profile.connection.serviceSelection === draft.serviceSelection &&
-      canReuseSavedConnection(profile),
+    (profile) => profile.connection.serviceSelection === draft.serviceSelection,
   )
   const selectedProfile = providerConnections.find(
     (profile) => profile.id === selectedConnectionId,
   )
-  const usingSavedHostedConnection =
-    draft.serviceSelection === 'volcengine' &&
-    selectedConnectionId !== NEW_CONNECTION
   const needsNewAddress =
     draft.serviceSelection === 'opensource' &&
     selectedConnectionId === NEW_CONNECTION
   const canContinue =
-    draft.serviceSelection === 'volcengine' ||
-    !needsNewAddress ||
+    (draft.serviceSelection === 'opensource' && !needsNewAddress) ||
     isValidConnectionUrl(draft.baseUrl)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -298,17 +270,23 @@ export function StudioSetup({
     if (selectedConnectionId === NEW_CONNECTION)
       newDraftsRef.current[current] = draft
     const nextId =
-      providerSelectionsRef.current[provider] ??
-      savedConnections.find(
-        (profile) =>
-          profile.connection.serviceSelection === provider &&
-          canReuseSavedConnection(profile),
-      )?.id ??
-      NEW_CONNECTION
+      provider === 'volcengine'
+        ? NEW_CONNECTION
+        : (providerSelectionsRef.current[provider] ??
+          savedConnections.find(
+            (profile) => profile.connection.serviceSelection === provider,
+          )?.id ??
+          NEW_CONNECTION)
     setSelectedConnectionId(nextId)
+    const savedHostedConnection = savedConnections.find(
+      (profile) => profile.connection.serviceSelection === 'volcengine',
+    )?.connection
     setDraft(
       nextId === NEW_CONNECTION
-        ? (newDraftsRef.current[provider] ?? newConnectionDraft(provider))
+        ? (newDraftsRef.current[provider] ??
+            (provider === 'volcengine' && savedHostedConnection
+              ? withoutCredentials(savedHostedConnection)
+              : newConnectionDraft(provider)))
         : withoutCredentials(
             savedConnections.find((profile) => profile.id === nextId)!
               .connection,
@@ -328,12 +306,27 @@ export function StudioSetup({
         return
       }
       try {
+        const matchingHostedProfile =
+          verified.serviceSelection === 'volcengine'
+            ? savedSetupConnections().find(
+                (profile) =>
+                  profile.connection.serviceSelection === 'volcengine' &&
+                  new URL(profile.connection.baseUrl).href.replace(
+                    /\/+$/,
+                    '',
+                  ) === new URL(verified.baseUrl).href.replace(/\/+$/, '') &&
+                  typeof profile.connection.apiKey === 'string' &&
+                  profile.connection.apiKey.trim() === verified.apiKey,
+              )
+            : undefined
         completeStudioSetup(
           verified,
           t(`studio:providers.${verified.serviceSelection}`),
-          selectedConnectionId === NEW_CONNECTION
-            ? undefined
-            : selectedConnectionId,
+          verified.serviceSelection === 'volcengine'
+            ? matchingHostedProfile?.id
+            : selectedConnectionId === NEW_CONNECTION
+              ? undefined
+              : selectedConnectionId,
         )
         onComplete(verified)
       } catch {
@@ -341,21 +334,11 @@ export function StudioSetup({
       }
       return
     }
-    const connectionToVerify = usingSavedHostedConnection
-      ? selectedProfile?.connection
-      : draft
-    if (!connectionToVerify) {
-      setError(t('savedConnectionUnavailable'))
-      return
-    }
-    if (!isValidConnectionUrl(connectionToVerify.baseUrl)) {
+    if (!isValidConnectionUrl(draft.baseUrl)) {
       setError(t('studio:profiles.invalidUrl'))
       return
     }
-    if (
-      draft.serviceSelection === 'volcengine' &&
-      !connectionToVerify.apiKey.trim()
-    ) {
+    if (draft.serviceSelection === 'volcengine' && !draft.apiKey.trim()) {
       setError(t('keyRequired'))
       keyInputRef.current?.focus()
       return
@@ -365,15 +348,12 @@ export function StudioSetup({
     abortRef.current = controller
     setBusy(true)
     try {
-      const result = await verifyStudioSetup(
-        connectionToVerify,
-        controller.signal,
-      )
+      const result = await verifyStudioSetup(draft, controller.signal)
       if (
         !controller.signal.aborted &&
         connectionRevision === connectionRevisionRef.current
       ) {
-        if (!usingSavedHostedConnection) setDraft(result)
+        setDraft(result)
         verifiedSelectionRef.current = selectedConnectionId
         setVerified(result)
       }
@@ -524,7 +504,6 @@ export function StudioSetup({
                               ? savedConnectionLabel(
                                   selectedProfile,
                                   providerConnections,
-                                  hostedProviderName,
                                 )
                               : t('newConnection')}
                           </SelectValue>
@@ -544,7 +523,6 @@ export function StudioSetup({
                                 {savedConnectionLabel(
                                   profile,
                                   providerConnections,
-                                  hostedProviderName,
                                 )}
                               </span>
                             </SelectItem>
@@ -595,7 +573,36 @@ export function StudioSetup({
                         </p>
                       )}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="setup-hosted-url"
+                        className="text-sm font-medium"
+                      >
+                        {t('hostedEndpoint')}
+                      </label>
+                      <Input
+                        id="setup-hosted-url"
+                        className="h-11 rounded-lg"
+                        type="url"
+                        value={draft.baseUrl}
+                        aria-invalid={Boolean(draft.baseUrl) && !canContinue}
+                        onChange={(event) =>
+                          update({
+                            baseUrl: event.target.value,
+                            apiKey: '',
+                            adminApiKey: '',
+                          })
+                        }
+                        {...PLAIN_INPUT_PROPS}
+                      />
+                      {draft.baseUrl && !canContinue ? (
+                        <p className="text-xs text-destructive">
+                          {t('studio:profiles.invalidUrl')}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                   <fieldset className="space-y-3">
                     <legend className="text-sm font-medium">
                       {t('language')}
@@ -677,159 +684,55 @@ export function StudioSetup({
                   className="space-y-5"
                 >
                   <fieldset disabled={busy} className="space-y-4">
-                    {draft.serviceSelection === 'volcengine' ? (
-                      <div className="grid gap-2">
-                        <label
-                          className="text-sm font-medium"
-                          htmlFor="setup-hosted-connection"
-                        >
-                          {t('connectionChoice')}
-                        </label>
-                        <Select
-                          value={selectedConnectionId}
-                          disabled={busy}
-                          onValueChange={(value) => {
-                            if (value) selectConnection(value)
-                          }}
-                        >
-                          <SelectTrigger
-                            id="setup-hosted-connection"
-                            className="h-11 w-full min-w-0 rounded-lg bg-background px-4 shadow-xs"
-                          >
-                            <SelectValue>
-                              {selectedProfile
-                                ? savedConnectionLabel(
-                                    selectedProfile,
-                                    providerConnections,
-                                    hostedProviderName,
-                                  )
-                                : t('newApiKeyConnection')}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent
-                            align="start"
-                            className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-1 shadow-lg before:hidden"
-                          >
-                            {providerConnections.map((profile) => (
-                              <SelectItem
-                                key={profile.id}
-                                value={profile.id}
-                                className="min-h-10 overflow-hidden rounded-lg px-3 pr-9"
-                                title={profile.connection.baseUrl}
-                              >
-                                <span className="block min-w-0 truncate font-medium">
-                                  {savedConnectionLabel(
-                                    profile,
-                                    providerConnections,
-                                    hostedProviderName,
-                                  )}
-                                </span>
-                              </SelectItem>
-                            ))}
-                            <SelectItem
-                              value={NEW_CONNECTION}
-                              className="min-h-10 rounded-lg px-3 pr-9"
-                            >
-                              {t('newApiKeyConnection')}
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          {t('hostedConnectionHint')}
-                        </p>
-                      </div>
-                    ) : null}
                     <div className="grid gap-2 text-sm">
-                      <label
-                        htmlFor={
-                          draft.serviceSelection === 'volcengine' &&
-                          !usingSavedHostedConnection
-                            ? 'setup-hosted-url'
+                      <span className="font-medium">
+                        {t('settings:fields.baseUrl')}
+                      </span>
+                      <p className="break-all rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+                        {draft.baseUrl}
+                      </p>
+                    </div>
+                    <label
+                      className="grid gap-2 text-sm font-medium"
+                      htmlFor="setup-key"
+                    >
+                      {t('settings:fields.userApiKey')}
+                      <Input
+                        ref={keyInputRef}
+                        className="h-11 rounded-lg bg-background/60 text-sm"
+                        id="setup-key"
+                        name="apiKey"
+                        type="password"
+                        aria-invalid={error === t('keyRequired')}
+                        aria-describedby={
+                          error === t('keyRequired')
+                            ? 'setup-key-error'
                             : undefined
                         }
-                        className="font-medium"
+                        value={draft.apiKey}
+                        onChange={(event) =>
+                          update({ apiKey: event.target.value })
+                        }
+                        {...PLAIN_INPUT_PROPS}
+                        autoComplete="new-password"
+                      />
+                    </label>
+                    {error === t('keyRequired') ? (
+                      <p
+                        id="setup-key-error"
+                        role="alert"
+                        className="text-sm text-destructive"
                       >
-                        {t('settings:fields.baseUrl')}
-                      </label>
-                      {draft.serviceSelection === 'volcengine' &&
-                      !usingSavedHostedConnection ? (
-                        <Input
-                          id="setup-hosted-url"
-                          className="h-11 rounded-lg"
-                          type="url"
-                          value={draft.baseUrl}
-                          aria-invalid={
-                            Boolean(draft.baseUrl) &&
-                            !isValidConnectionUrl(draft.baseUrl)
-                          }
-                          onChange={(event) =>
-                            update({ baseUrl: event.target.value })
-                          }
-                          {...PLAIN_INPUT_PROPS}
-                        />
-                      ) : (
-                        <p className="break-all rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
-                          {draft.baseUrl}
-                        </p>
-                      )}
-                      {draft.serviceSelection === 'volcengine' &&
-                      !usingSavedHostedConnection &&
-                      draft.baseUrl &&
-                      !isValidConnectionUrl(draft.baseUrl) ? (
-                        <p className="text-xs text-destructive">
-                          {t('studio:profiles.invalidUrl')}
-                        </p>
-                      ) : null}
-                    </div>
-                    {!usingSavedHostedConnection ? (
-                      <>
-                        <label
-                          className="grid gap-2 text-sm font-medium"
-                          htmlFor="setup-key"
-                        >
-                          {t('settings:fields.userApiKey')}
-                          <Input
-                            ref={keyInputRef}
-                            className="h-11 rounded-lg bg-background/60 text-sm"
-                            id="setup-key"
-                            name="apiKey"
-                            type="password"
-                            aria-invalid={error === t('keyRequired')}
-                            aria-describedby={
-                              error === t('keyRequired')
-                                ? 'setup-key-error'
-                                : undefined
-                            }
-                            value={draft.apiKey}
-                            onChange={(event) =>
-                              update({ apiKey: event.target.value })
-                            }
-                            {...PLAIN_INPUT_PROPS}
-                            autoComplete="new-password"
-                          />
-                        </label>
-                        {error === t('keyRequired') ? (
-                          <p
-                            id="setup-key-error"
-                            role="alert"
-                            className="text-sm text-destructive"
-                          >
-                            {error}
-                          </p>
-                        ) : null}
-                        <p className="text-sm text-muted-foreground">
-                          {t(
-                            draft.serviceSelection === 'volcengine'
-                              ? 'hostedKeyHelp'
-                              : 'keyHelp',
-                          )}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        {t('savedHostedConnectionHelp')}
+                        {error}
                       </p>
-                    )}
+                    ) : null}
+                    <p className="text-sm text-muted-foreground">
+                      {t(
+                        draft.serviceSelection === 'volcengine'
+                          ? 'hostedKeyHelp'
+                          : 'keyHelp',
+                      )}
+                    </p>
                     {draft.serviceSelection === 'opensource' ? (
                       <div>
                         <button
@@ -930,12 +833,7 @@ export function StudioSetup({
                     <Button
                       type="submit"
                       className="min-h-11 flex-1 rounded-lg"
-                      disabled={
-                        busy ||
-                        (draft.serviceSelection === 'volcengine' &&
-                          !usingSavedHostedConnection &&
-                          !isValidConnectionUrl(draft.baseUrl))
-                      }
+                      disabled={busy || !isValidConnectionUrl(draft.baseUrl)}
                     >
                       {busy ? (
                         <Loader2Icon className="size-4 animate-spin" />
