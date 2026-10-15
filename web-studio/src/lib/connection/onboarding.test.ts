@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   completeStudioSetup,
   needsStudioSetup,
@@ -41,6 +41,7 @@ beforeEach(() => {
   get.mockReset()
   vi.mocked(createClient).mockClear()
 })
+afterEach(() => vi.unstubAllGlobals())
 describe('first-use detection', () => {
   it('starts setup for a new tab and retains unfinished setup on reload', () => {
     expect(needsStudioSetup()).toBe(true)
@@ -79,6 +80,19 @@ describe('first-use detection', () => {
     localStorage.removeItem('ov_console_connection')
     sessionStorage.removeItem(WORKSPACE_SESSION_KEY)
     expect(needsStudioSetup()).toBe(true)
+  })
+  it('completes setup when randomUUID is unavailable on an HTTP origin', () => {
+    vi.stubGlobal('crypto', {
+      getRandomValues: (bytes: Uint8Array) => bytes.fill(7),
+    })
+    completeStudioSetup(draft, 'OpenViking')
+    const saved = JSON.parse(localStorage.getItem(PROFILES_STORAGE_KEY) || '{}')
+    expect(saved.profiles).toHaveLength(1)
+    expect(saved.profiles[0].id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    )
+    expect(saved.activeId).toBe(saved.profiles[0].id)
+    expect(needsStudioSetup()).toBe(false)
   })
   it('retains other saved workspaces when selecting a new connection', () => {
     localStorage.setItem(
@@ -121,6 +135,26 @@ describe('first-use detection', () => {
     expect(saved.activeId).toBe('second')
     expect(saved.profiles[0].connection.apiKey).toBe('synthetic-key')
     expect(saved.profiles[1].connection.apiKey).toBe('updated-key')
+  })
+  it('keeps both workspaces when a new connection uses an existing service address', () => {
+    const hosted = {
+      ...draft,
+      serviceSelection: 'volcengine' as const,
+      baseUrl: 'https://hosted.test',
+    }
+    completeStudioSetup({ ...hosted, apiKey: 'alice-key' }, 'Alice')
+    const first = JSON.parse(localStorage.getItem(PROFILES_STORAGE_KEY) || '{}')
+
+    completeStudioSetup({ ...hosted, apiKey: 'bob-key' }, 'Bob')
+    const saved = JSON.parse(localStorage.getItem(PROFILES_STORAGE_KEY) || '{}')
+    expect(saved.profiles).toHaveLength(2)
+    expect(saved.profiles[0]).toEqual(first.profiles[0])
+    expect(saved.profiles[1]).toMatchObject({
+      name: 'Bob',
+      connection: { apiKey: 'bob-key' },
+    })
+    expect(saved.activeId).toBe(saved.profiles[1].id)
+    expect(saved.activeId).not.toBe(first.activeId)
   })
 })
 describe('verification', () => {

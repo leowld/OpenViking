@@ -52,7 +52,10 @@ beforeEach(() => {
   connectionState.profiles = []
   connectionState.activeProfileId = 'active'
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 it('groups identical connections without losing any saved profile', () => {
   const profiles = [
@@ -115,4 +118,30 @@ it('lets every record in an identical connection group be managed', () => {
     within(group!).getAllByRole('button', { name: 'profiles.activate' })[1],
   )
   expect(connectionState.activateProfile).toHaveBeenCalledWith('duplicate')
+})
+
+it('creates a connection on HTTP origins without crypto.randomUUID', () => {
+  const getRandomValues = globalThis.crypto.getRandomValues.bind(
+    globalThis.crypto,
+  )
+  vi.stubGlobal('crypto', { getRandomValues })
+
+  render(React.createElement(ConnectionProfilesList))
+  fireEvent.click(screen.getByRole('button', { name: 'profiles.add' }))
+  fireEvent.change(screen.getByLabelText('profiles.name'), {
+    target: { value: 'Local' },
+  })
+  fireEvent.change(screen.getByLabelText('profiles.fields.baseUrl'), {
+    target: { value: 'http://192.0.2.1:1933' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'profiles.save' }))
+
+  expect(connectionState.saveProfile).toHaveBeenCalledWith(
+    expect.objectContaining({
+      id: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      ),
+      name: 'Local',
+    }),
+  )
 })

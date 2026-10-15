@@ -51,6 +51,31 @@ const PROVIDERS = [
 const THEMES = ['light', 'dark', 'system'] as const
 const ADVANCED_FIELDS = ['adminApiKey', 'accountId', 'userId'] as const
 const NEW_CONNECTION = 'new'
+type SavedConnection = ReturnType<typeof savedSetupConnections>[number]
+
+function savedConnectionTitle(profile: SavedConnection): string {
+  const identity = [
+    profile.connection.accountId,
+    profile.connection.userId,
+  ].filter((value) => value && value !== 'default')
+  return identity.length
+    ? `${profile.name} · ${identity.join('/')}`
+    : profile.name
+}
+
+function savedConnectionLabel(
+  profile: SavedConnection,
+  profiles: SavedConnection[],
+): string {
+  const title = savedConnectionTitle(profile)
+  const sameLabel = profiles.filter(
+    (candidate) =>
+      savedConnectionTitle(candidate) === title &&
+      candidate.connection.baseUrl === profile.connection.baseUrl,
+  )
+  if (sameLabel.length < 2) return title
+  return `${title} (${sameLabel.findIndex((candidate) => candidate.id === profile.id) + 1})`
+}
 
 function newConnectionDraft(
   provider: (typeof PROVIDERS)[number][0],
@@ -84,7 +109,6 @@ export function StudioSetup({
     }
   })
   const [savedConnections] = useState(() => {
-    const seen = new Set<string>()
     const profiles = savedSetupConnections()
     if (
       import.meta.env.DEV &&
@@ -103,7 +127,26 @@ export function StudioSetup({
         },
       })
     }
+    const seen = new Set<string>()
     return profiles
+      .sort((a, b) =>
+        a.id === activeProfileId ? -1 : b.id === activeProfileId ? 1 : 0,
+      )
+      .filter((profile) => {
+        const connection = profile.connection
+        const address = new URL(connection.baseUrl).href.replace(/\/+$/, '')
+        const identity = JSON.stringify([
+          connection.serviceSelection,
+          address,
+          connection.accountId,
+          connection.userId,
+          connection.apiKey,
+          connection.adminApiKey,
+        ])
+        if (seen.has(identity)) return false
+        seen.add(identity)
+        return true
+      })
       .map((profile) => ({
         ...profile,
         connection: {
@@ -112,19 +155,6 @@ export function StudioSetup({
           adminApiKey: '',
         },
       }))
-      .sort((a, b) =>
-        a.id === activeProfileId ? -1 : b.id === activeProfileId ? 1 : 0,
-      )
-      .filter((profile) => {
-        const address = new URL(profile.connection.baseUrl).href.replace(
-          /\/+$/,
-          '',
-        )
-        const key = `${profile.connection.serviceSelection}:${address}`
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
   })
   const [selectedConnectionId, setSelectedConnectionId] = useState(
     () => savedConnections[0]?.id ?? NEW_CONNECTION,
@@ -407,49 +437,58 @@ export function StudioSetup({
                       ))}
                     </div>
                   </fieldset>
-                  {draft.serviceSelection === 'opensource' ? (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">
-                        {t('connectionChoice')}
-                      </p>
-                      <Select
-                        value={selectedConnectionId}
-                        onValueChange={(value) => {
-                          if (value) selectConnection(value)
-                        }}
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">
+                      {t('connectionChoice')}
+                    </p>
+                    <Select
+                      value={selectedConnectionId}
+                      onValueChange={(value) => {
+                        if (value) selectConnection(value)
+                      }}
+                    >
+                      <SelectTrigger
+                        aria-label={t('connectionChoice')}
+                        className="h-11 w-full min-w-0 rounded-lg bg-background px-4 shadow-xs"
                       >
-                        <SelectTrigger
-                          aria-label={t('connectionChoice')}
-                          className="h-11 w-full min-w-0 rounded-lg bg-background px-4 shadow-xs"
-                        >
-                          <SelectValue>
-                            {selectedProfile
-                              ? selectedProfile.connection.baseUrl
-                              : t('newConnection')}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent
-                          align="start"
-                          className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-1 shadow-lg before:hidden"
-                        >
-                          {providerConnections.map((profile) => (
-                            <SelectItem
-                              key={profile.id}
-                              value={profile.id}
-                              className="min-h-10 rounded-lg px-3 pr-9"
-                            >
-                              {profile.connection.baseUrl}
-                            </SelectItem>
-                          ))}
+                        <SelectValue>
+                          {selectedProfile
+                            ? savedConnectionLabel(
+                                selectedProfile,
+                                providerConnections,
+                              )
+                            : t('newConnection')}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent
+                        align="start"
+                        className="w-[var(--anchor-width)] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-1 shadow-lg before:hidden"
+                      >
+                        {providerConnections.map((profile) => (
                           <SelectItem
-                            value={NEW_CONNECTION}
-                            className="min-h-10 rounded-lg px-3 pr-9"
+                            key={profile.id}
+                            value={profile.id}
+                            className="min-h-10 overflow-hidden rounded-lg px-3 pr-9"
+                            title={profile.connection.baseUrl}
                           >
-                            {t('newConnection')}
+                            <span className="block min-w-0 truncate font-medium">
+                              {savedConnectionLabel(
+                                profile,
+                                providerConnections,
+                              )}
+                            </span>
                           </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {needsNewAddress ? (
+                        ))}
+                        <SelectItem
+                          value={NEW_CONNECTION}
+                          className="min-h-10 rounded-lg px-3 pr-9"
+                        >
+                          {t('newConnection')}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {draft.serviceSelection === 'opensource' ? (
+                      needsNewAddress ? (
                         <div className="space-y-2 pt-2">
                           <label htmlFor="setup-new-url" className="sr-only">
                             {t('settings:fields.baseUrl')}
@@ -485,34 +524,34 @@ export function StudioSetup({
                         >
                           {draft.baseUrl}
                         </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <label
-                        htmlFor="setup-hosted-url"
-                        className="text-sm font-medium"
-                      >
-                        {t('hostedEndpoint')}
-                      </label>
-                      <Input
-                        id="setup-hosted-url"
-                        className="h-11 rounded-lg"
-                        type="url"
-                        value={draft.baseUrl}
-                        aria-invalid={Boolean(draft.baseUrl) && !canContinue}
-                        onChange={(event) =>
-                          update({ baseUrl: event.target.value })
-                        }
-                        {...PLAIN_INPUT_PROPS}
-                      />
-                      {draft.baseUrl && !canContinue ? (
-                        <p className="text-xs text-destructive">
-                          {t('studio:profiles.invalidUrl')}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
+                      )
+                    ) : (
+                      <div className="space-y-2 pt-2">
+                        <label
+                          htmlFor="setup-hosted-url"
+                          className="text-sm font-medium"
+                        >
+                          {t('hostedEndpoint')}
+                        </label>
+                        <Input
+                          id="setup-hosted-url"
+                          className="h-11 rounded-lg"
+                          type="url"
+                          value={draft.baseUrl}
+                          aria-invalid={Boolean(draft.baseUrl) && !canContinue}
+                          onChange={(event) =>
+                            update({ baseUrl: event.target.value })
+                          }
+                          {...PLAIN_INPUT_PROPS}
+                        />
+                        {draft.baseUrl && !canContinue ? (
+                          <p className="text-xs text-destructive">
+                            {t('studio:profiles.invalidUrl')}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
                   <fieldset className="space-y-3">
                     <legend className="text-sm font-medium">
                       {t('language')}

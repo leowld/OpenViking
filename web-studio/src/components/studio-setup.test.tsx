@@ -42,7 +42,7 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-it('shows each saved address once and keeps the active profile for duplicates', async () => {
+it('deduplicates identical saved connections and keeps the active profile', async () => {
   const connection = {
     serviceSelection: 'opensource',
     baseUrl: 'http://127.0.0.1:1933',
@@ -56,7 +56,11 @@ it('shows each saved address once and keeps the active profile for duplicates', 
     JSON.stringify({
       activeId: 'second',
       profiles: [
-        { id: 'first', name: 'Default', connection },
+        {
+          id: 'first',
+          name: 'Default',
+          connection: { ...connection, userId: '' },
+        },
         {
           id: 'second',
           name: 'Open source',
@@ -74,7 +78,7 @@ it('shows each saved address once and keeps the active profile for duplicates', 
   const selector = screen.getByRole('combobox', {
     name: 'connectionChoice',
   })
-  expect(selector.textContent).toContain('http://127.0.0.1:1933')
+  expect(selector.textContent).toContain('Open source')
   const user = userEvent.setup()
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   fireEvent.click(screen.getByRole('button', { name: 'advanced' }))
@@ -84,15 +88,12 @@ it('shows each saved address once and keeps the active profile for duplicates', 
   fireEvent.click(screen.getByRole('button', { name: 'back' }))
   await user.click(screen.getByRole('combobox', { name: 'connectionChoice' }))
   expect(await screen.findAllByRole('option')).toHaveLength(3)
-  expect(
-    screen.getAllByRole('option', { name: 'http://127.0.0.1:1933' }),
-  ).toHaveLength(1)
-  await user.click(
-    screen.getByRole('option', { name: 'https://remote.test/ov' }),
-  )
+  expect(screen.getAllByRole('option', { name: 'Open source' })).toHaveLength(1)
+  expect(screen.queryByRole('option', { name: 'Default' })).toBeNull()
+  await user.click(screen.getByRole('option', { name: 'Remote' }))
   expect(
     screen.getByRole('combobox', { name: 'connectionChoice' }).textContent,
-  ).toContain('https://remote.test/ov')
+  ).toContain('Remote')
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   expect(screen.getAllByText('https://remote.test/ov').length).toBeGreaterThan(
     0,
@@ -144,6 +145,100 @@ it('requires re-entering saved credentials each time setup opens', () => {
     screen.getByLabelText<HTMLInputElement>('settings:fields.userApiKey').value,
   ).toBe('')
 })
+it('keeps same-address profiles with different keys or users selectable', async () => {
+  const connection = {
+    serviceSelection: 'volcengine',
+    baseUrl: 'https://hosted.test/ov',
+    apiKey: 'alice-key',
+    adminApiKey: '',
+    accountId: 'team',
+    userId: 'alice',
+  }
+  localStorage.setItem(
+    'ov_console_connection_profiles',
+    JSON.stringify({
+      activeId: 'alice',
+      profiles: [
+        { id: 'duplicate', name: 'Old Alice', connection },
+        { id: 'alice', name: 'Alice', connection },
+        {
+          id: 'bob',
+          name: 'Bob',
+          connection: { ...connection, apiKey: 'bob-key' },
+        },
+        {
+          id: 'carol',
+          name: 'Carol',
+          connection: { ...connection, userId: 'carol' },
+        },
+      ],
+    }),
+  )
+  render(<StudioSetup onComplete={vi.fn()} />)
+  const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
+  expect(selector.textContent).toContain('Alice · team/alice')
+  const user = userEvent.setup()
+  await user.click(selector)
+  expect(await screen.findAllByRole('option')).toHaveLength(4)
+  expect(screen.queryByRole('option', { name: /Old Alice/ })).toBeNull()
+  expect(screen.getByRole('option', { name: 'Bob · team/alice' })).toBeTruthy()
+  expect(
+    screen.getByRole('option', { name: 'Carol · team/carol' }),
+  ).toBeTruthy()
+  await user.click(screen.getByRole('option', { name: 'Bob · team/alice' }))
+  expect(selector.textContent).toContain('Bob · team/alice')
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  expect(
+    screen.getByLabelText<HTMLInputElement>('settings:fields.userApiKey').value,
+  ).toBe('')
+})
+it('creates a hosted connection without reusing the selected saved profile ID', async () => {
+  const connection = {
+    serviceSelection: 'volcengine',
+    baseUrl: 'https://hosted.test/ov',
+    apiKey: 'alice-key',
+    adminApiKey: '',
+    accountId: 'team',
+    userId: 'alice',
+  }
+  localStorage.setItem(
+    'ov_console_connection_profiles',
+    JSON.stringify({
+      activeId: 'alice',
+      profiles: [{ id: 'alice', name: 'Alice', connection }],
+    }),
+  )
+  mocks.verify.mockImplementation(async (draft) => draft)
+  render(<StudioSetup onComplete={vi.fn()} />)
+  const user = userEvent.setup()
+  const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
+  expect(selector.textContent).toContain('Alice · team/alice')
+  await user.click(selector)
+  await user.click(await screen.findByRole('option', { name: 'newConnection' }))
+  expect(selector.textContent).toContain('newConnection')
+  const endpoint = screen.getByRole<HTMLInputElement>('textbox', {
+    name: 'hostedEndpoint',
+  })
+  expect(endpoint.value).toBe(
+    'https://api.vikingdb.cn-beijing.volces.com/openviking',
+  )
+  fireEvent.change(endpoint, { target: { value: 'https://hosted.test/ov' } })
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  fireEvent.change(screen.getByLabelText('settings:fields.userApiKey'), {
+    target: { value: 'bob-key' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'verify' }))
+  await screen.findByRole('status')
+  fireEvent.click(screen.getByRole('button', { name: 'enter' }))
+  expect(mocks.complete).toHaveBeenCalledWith(
+    expect.objectContaining({
+      baseUrl: 'https://hosted.test/ov',
+      apiKey: 'bob-key',
+    }),
+    'studio:providers.volcengine',
+    undefined,
+  )
+})
 it('selects the configured open-source address when switching from hosted', () => {
   const hosted = {
     serviceSelection: 'volcengine',
@@ -175,7 +270,10 @@ it('selects the configured open-source address when switching from hosted', () =
   fireEvent.click(screen.getByLabelText('studio:providers.opensource'))
   expect(
     screen.getByRole('combobox', { name: 'connectionChoice' }).textContent,
-  ).toContain('https://configured.example/ov')
+  ).toContain('Open source')
+  expect(
+    screen.getAllByTitle('https://configured.example/ov').length,
+  ).toBeGreaterThan(0)
   expect(screen.queryByLabelText('settings:fields.baseUrl')).toBeNull()
 })
 
@@ -204,7 +302,10 @@ it('offers the local development service when only a hosted link is saved', () =
   fireEvent.click(screen.getByLabelText('studio:providers.opensource'))
   expect(
     screen.getByRole('combobox', { name: 'connectionChoice' }).textContent,
-  ).toContain('http://127.0.0.1:1933')
+  ).toContain('Local OpenViking')
+  expect(screen.getAllByTitle('http://127.0.0.1:1933').length).toBeGreaterThan(
+    0,
+  )
   expect(screen.queryByLabelText('settings:fields.baseUrl')).toBeNull()
 })
 it('requires a valid new open-source address before continuing', () => {

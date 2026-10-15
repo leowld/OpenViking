@@ -3,6 +3,7 @@ import type { ConnectionDraft } from '#/lib/connection/types'
 import { createConnectionHealthHeaders } from './auth'
 import { createClient } from '#/gen/ov-client/client'
 import { getOvResult, normalizeOvClientError } from '#/lib/ov-client'
+import { createRandomUuid } from '#/lib/browser-crypto'
 import {
   resolveServerAuthMode,
   fetchConnectionHealth,
@@ -218,14 +219,10 @@ export function completeStudioSetup(
 ) {
   // Do not enter the workspace if the browser cannot retain this connection.
   const saved = savedSetupConnections()
-  const existing =
-    saved.find((profile) => profile.id === selectedProfileId) ??
-    saved.find(
-      (profile) =>
-        profile.connection.baseUrl === connection.baseUrl &&
-        profile.connection.serviceSelection === connection.serviceSelection,
-    )
-  const id = existing?.id ?? crypto.randomUUID()
+  const existing = selectedProfileId
+    ? saved.find((profile) => profile.id === selectedProfileId)
+    : undefined
+  const id = existing?.id ?? createRandomUuid()
   localStorage.setItem(
     PROFILES_STORAGE_KEY,
     JSON.stringify({

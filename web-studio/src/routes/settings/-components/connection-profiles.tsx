@@ -14,6 +14,7 @@ import {
 import { Input } from '#/components/ui/input'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { useAppConnection } from '#/hooks/use-app-connection'
+import { createRandomUuid } from '#/lib/browser-crypto'
 import { PLAIN_INPUT_PROPS } from '#/lib/form-input'
 import type { ConnectionProfile } from '#/lib/connection/profiles'
 import {
@@ -146,7 +147,7 @@ export function ConnectionProfilesList() {
           <Button
             onClick={() =>
               openEditor({
-                id: crypto.randomUUID(),
+                id: createRandomUuid(),
                 name: '',
                 connection: {
                   serviceSelection: 'opensource',
