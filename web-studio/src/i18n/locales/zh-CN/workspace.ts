@@ -658,15 +658,19 @@ const workspace = {
   },
   accountSwitcher: {
     create: '新建账号',
+    connections: {
+      add: '添加连接',
+      savedOnly: '显示连接设置中已保存的连接',
+      switch: '切换连接',
+      title: '已保存的连接',
+    },
+    serverAccountsTitle: '服务端账号',
     provider: {
       hosted: '火山托管',
       opensource: '开源服务',
     },
     hosted: {
-      addWorkspace: '连接其他空间',
-      configuredOnly: '仅显示已配置用户密钥的火山连接',
       currentWorkspace: '当前空间',
-      switchWorkspace: '切换工作区',
     },
     dialog: {
       accountLabel: '账号',

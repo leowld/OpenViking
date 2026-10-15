@@ -685,15 +685,19 @@ const workspace = {
   },
   accountSwitcher: {
     create: 'Create account',
+    connections: {
+      add: 'Add connection',
+      savedOnly: 'Connections saved in Connection Settings',
+      switch: 'Switch connection',
+      title: 'Saved connections',
+    },
+    serverAccountsTitle: 'Server accounts',
     provider: {
       hosted: 'Volcengine hosted',
       opensource: 'Open source',
     },
     hosted: {
-      addWorkspace: 'Connect another space',
-      configuredOnly: 'Only hosted connections with a User API Key are shown',
       currentWorkspace: 'Current space',
-      switchWorkspace: 'Switch workspace',
     },
     dialog: {
       accountLabel: 'Account',

@@ -41,6 +41,8 @@ import type {
   CreateAccountInput,
 } from '#/lib/admin'
 import { DEFAULT_USER_ID } from '#/lib/admin-options'
+import { formatHostedIdentity } from '#/lib/connection/identity-label'
+import { connectionProfileFingerprint } from '#/lib/connection/profiles'
 import { PLAIN_INPUT_PROPS } from '#/lib/form-input'
 import { ovClient } from '#/lib/ov-client'
 import { resolveStudioManagementCapabilities } from '#/lib/studio-permissions'
@@ -352,122 +354,152 @@ export function AccountSwitcher() {
   })
 
   const accountLabel = connection.accountId || t('unset')
+  const seenProfiles = new Set<string>()
+  const savedProfiles = [...profiles]
+    .sort((a, b) =>
+      a.id === activeProfileId ? -1 : b.id === activeProfileId ? 1 : 0,
+    )
+    .filter((profile) => {
+      const key = connectionProfileFingerprint(profile.connection)
+      if (seenProfiles.has(key)) return false
+      seenProfiles.add(key)
+      return true
+    })
+  const identityFor = (profile: (typeof savedProfiles)[number]) =>
+    profile.connection.serviceSelection === 'volcengine'
+      ? formatHostedIdentity(
+          profile.connection.accountId,
+          profile.connection.userId,
+        )
+      : `${profile.connection.accountId}/${profile.connection.userId}`
+  const summaryFor = (profile: (typeof savedProfiles)[number]) =>
+    JSON.stringify([
+      profile.name,
+      profile.connection.serviceSelection,
+      identityFor(profile),
+      profile.connection.baseUrl.trim().replace(/\/+$/, ''),
+    ])
+  const summaryCounts = new Map<string, number>()
+  for (const profile of savedProfiles) {
+    const summary = summaryFor(profile)
+    summaryCounts.set(summary, (summaryCounts.get(summary) ?? 0) + 1)
+  }
+  const savedConnectionsMenu = (
+    <>
+      <div className="max-h-60 space-y-0.5 overflow-y-auto p-1.5">
+        {savedProfiles.map((profile) => {
+          const active = profile.id === activeProfileId
+          const identity = identityFor(profile)
+          const showProfileId =
+            (summaryCounts.get(summaryFor(profile)) ?? 0) > 1
+          return (
+            <button
+              key={profile.id}
+              type="button"
+              aria-current={active ? 'true' : undefined}
+              onClick={() => {
+                setOpen(false)
+                activateProfile(profile.id)
+              }}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                active && 'bg-accent/70',
+              )}
+            >
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-background text-xs font-semibold">
+                {profile.name.charAt(0).toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-1">
+                  <span className="min-w-0 truncate text-sm font-medium">
+                    {profile.name}
+                  </span>
+                  <ServiceIcon
+                    hosted={
+                      profile.connection.serviceSelection === 'volcengine'
+                    }
+                  />
+                  {showProfileId ? (
+                    <span
+                      className="shrink-0 font-mono text-[10px] text-muted-foreground"
+                      title={profile.id}
+                    >
+                      #{profile.id.slice(0, 8)}
+                    </span>
+                  ) : null}
+                </span>
+                <span
+                  className="block truncate text-xs text-muted-foreground"
+                  title={`${identity ? `[${identity}] · ` : ''}${profile.connection.baseUrl}`}
+                >
+                  {identity ? `[${identity}] · ` : null}
+                  {profile.connection.baseUrl}
+                </span>
+              </span>
+              {active ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+            </button>
+          )
+        })}
+      </div>
+      <p className="border-t px-2.5 py-2 text-xs text-muted-foreground">
+        {t('connections.savedOnly')}
+      </p>
+      <Link
+        to="/config"
+        onClick={() => setOpen(false)}
+        className="flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <PlusIcon className="size-4" />
+        {t('connections.add')}
+      </Link>
+    </>
+  )
 
-  if (provider === 'volcengine') {
-    const seenWorkspaces = new Set<string>()
-    const libraryProfiles = [...profiles]
-      .filter(
-        (profile) =>
-          profile.connection.serviceSelection === 'volcengine' &&
-          profile.connection.baseUrl.replace(/\/+$/, '') ===
-            connection.baseUrl.replace(/\/+$/, '') &&
-          Boolean(profile.connection.apiKey),
-      )
-      .sort((a, b) =>
-        a.id === activeProfileId ? -1 : b.id === activeProfileId ? 1 : 0,
-      )
-      .filter((profile) => {
-        const workspace = profile.connection.accountId || profile.name
-        if (seenWorkspaces.has(workspace)) return false
-        seenWorkspaces.add(workspace)
-        return true
-      })
-
+  if (provider === 'volcengine' || !canManageAccounts) {
     return (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
-          aria-label={t('hosted.switchWorkspace')}
-          className="flex h-10 w-full min-w-0 items-center gap-2 rounded-lg px-1 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+          aria-label={t('connections.switch')}
+          className="flex h-10 w-full min-w-0 items-center gap-2 rounded-lg px-1 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center"
         >
           <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-sidebar-accent/50">
             <Building2Icon className="size-4" />
           </span>
-          <span className="flex min-w-0 flex-1 items-center gap-1">
+          <span className="flex min-w-0 flex-1 items-center gap-1 group-data-[collapsible=icon]:hidden">
             <span className="min-w-0 truncate text-sm font-semibold">
-              {connection.accountId || t('hosted.currentWorkspace')}
+              {(provider === 'volcengine' &&
+                formatHostedIdentity(
+                  connection.accountId,
+                  connection.userId,
+                )) ||
+                connection.accountId ||
+                t('hosted.currentWorkspace')}
             </span>
-            <ServiceIcon hosted />
+            {provider !== 'unknown' ? (
+              <ServiceIcon hosted={provider === 'volcengine'} />
+            ) : null}
           </span>
-          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
         </PopoverTrigger>
         <PopoverContent
           side="bottom"
           align="start"
           sideOffset={6}
-          className="w-64 gap-0 p-1.5"
+          className="w-80 gap-0 p-1.5"
         >
-          <div className="max-h-60 space-y-0.5 overflow-y-auto">
-            {libraryProfiles.map((profile) => {
-              const active = profile.id === activeProfileId
-              return (
-                <button
-                  key={profile.id}
-                  type="button"
-                  aria-current={active ? 'true' : undefined}
-                  onClick={() => {
-                    setOpen(false)
-                    activateProfile(profile.id)
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    active && 'bg-accent/70',
-                  )}
-                >
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-background text-xs font-semibold">
-                    {(profile.connection.accountId || profile.name)
-                      .charAt(0)
-                      .toUpperCase()}
-                  </span>
-                  <span className="flex min-w-0 flex-1 items-center gap-1">
-                    <span className="min-w-0 truncate text-sm font-medium">
-                      {profile.connection.accountId || profile.name}
-                    </span>
-                    <ServiceIcon hosted />
-                  </span>
-                  {active ? <CheckIcon className="size-3.5 shrink-0" /> : null}
-                </button>
-              )
-            })}
-          </div>
-          <p className="border-t px-2.5 py-2 text-xs text-muted-foreground">
-            {t('hosted.configuredOnly')}
-          </p>
-          <Link
-            to="/config"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <PlusIcon className="size-4" />
-            {t('hosted.addWorkspace')}
-          </Link>
+          {savedConnectionsMenu}
         </PopoverContent>
       </Popover>
-    )
-  }
-
-  if (!canManageAccounts) {
-    return (
-      <div
-        className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-        title={accountLabel}
-      >
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-sidebar-accent/50">
-          <Building2Icon className="size-4" />
-        </span>
-        <span className="flex min-w-0 flex-1 items-center gap-1 group-data-[collapsible=icon]:hidden">
-          <span className="min-w-0 truncate text-sm font-semibold">
-            {accountLabel}
-          </span>
-          {provider === 'opensource' ? <ServiceIcon hosted={false} /> : null}
-        </span>
-      </div>
     )
   }
 
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger className="flex h-10 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+        <PopoverTrigger
+          aria-label={t('connections.switch')}
+          className="flex h-10 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        >
           <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-sidebar-border bg-sidebar-accent/50">
             <Building2Icon className="size-4" />
           </span>
@@ -483,8 +515,15 @@ export function AccountSwitcher() {
           side="bottom"
           align="start"
           sideOffset={6}
-          className="w-64 gap-0 p-0"
+          className="max-h-[min(80vh,44rem)] w-80 gap-0 overflow-y-auto p-0"
         >
+          <p className="px-4 pt-3 text-xs font-medium text-muted-foreground">
+            {t('connections.title')}
+          </p>
+          {savedConnectionsMenu}
+          <p className="border-t px-4 pt-3 text-xs font-medium text-muted-foreground">
+            {t('serverAccountsTitle')}
+          </p>
           <div className="border-b p-2">
             <div className="relative">
               <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />

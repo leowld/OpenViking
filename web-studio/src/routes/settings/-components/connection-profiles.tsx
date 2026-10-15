@@ -17,7 +17,9 @@ import { useAppConnection } from '#/hooks/use-app-connection'
 import { createRandomUuid } from '#/lib/browser-crypto'
 import { PLAIN_INPUT_PROPS } from '#/lib/form-input'
 import type { ConnectionProfile } from '#/lib/connection/profiles'
+import { formatHostedIdentity } from '#/lib/connection/identity-label'
 import {
+  connectionProfileFingerprint,
   isValidConnectionUrl,
   normalizeProfileConnection,
 } from '#/lib/connection/profiles'
@@ -39,17 +41,9 @@ export function groupedConnectionProfiles(
     a.id === activeProfileId ? -1 : b.id === activeProfileId ? 1 : 0,
   )
   for (const profile of sorted) {
-    const connection = normalizeProfileConnection(profile.connection)
     // Account and user IDs may still be unverified defaults. A different key
     // must remain a separate connection, even when those labels are identical.
-    const identity = JSON.stringify([
-      connection.serviceSelection,
-      connection.baseUrl.trim().replace(/\/+$/, ''),
-      connection.accountId,
-      connection.userId,
-      connection.apiKey,
-      connection.adminApiKey,
-    ])
+    const identity = connectionProfileFingerprint(profile.connection)
     const group = groups.get(identity)
     if (group) group.push(profile)
     else groups.set(identity, [profile])
@@ -93,6 +87,13 @@ export function ConnectionProfilesList() {
     })
     setDraft(null)
   }
+  const identityLabel = (profile: ConnectionProfile) =>
+    profile.connection.serviceSelection === 'volcengine'
+      ? formatHostedIdentity(
+          profile.connection.accountId,
+          profile.connection.userId,
+        )
+      : `${profile.connection.accountId}/${profile.connection.userId}`
   const renderProfile = (profile: ConnectionProfile) => (
     <div
       key={profile.id}
@@ -101,12 +102,14 @@ export function ConnectionProfilesList() {
       <div className="w-full min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{profile.name}</span>
-          <span
-            className="font-mono text-xs text-muted-foreground"
-            title={`${t('profiles.fields.accountId')}: ${profile.connection.accountId} · ${t('profiles.fields.userId')}: ${profile.connection.userId}`}
-          >
-            [{profile.connection.accountId}/{profile.connection.userId}]
-          </span>
+          {identityLabel(profile) && (
+            <span
+              className="font-mono text-xs text-muted-foreground"
+              title={identityLabel(profile) ?? undefined}
+            >
+              [{identityLabel(profile)}]
+            </span>
+          )}
           <Badge variant="outline">
             {t(`providers.${profile.connection.serviceSelection}`)}
           </Badge>
@@ -174,10 +177,11 @@ export function ConnectionProfilesList() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{primary.name}</span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        [{primary.connection.accountId}/
-                        {primary.connection.userId}]
-                      </span>
+                      {identityLabel(primary) && (
+                        <span className="font-mono text-xs text-muted-foreground">
+                          [{identityLabel(primary)}]
+                        </span>
+                      )}
                       <Badge variant="outline">
                         {t(`providers.${primary.connection.serviceSelection}`)}
                       </Badge>

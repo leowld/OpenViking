@@ -8,6 +8,7 @@ import {
   waitFor,
 } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AccountSwitcher } from './account-switcher'
 
@@ -31,6 +32,9 @@ const { state, fetchAccounts, fetchUsers, switchIdentity } = vi.hoisted(() => ({
 vi.mock('#/hooks/use-app-connection', () => ({
   useAppConnection: () => ({
     ...state,
+    profiles: [],
+    activeProfileId: 'source',
+    activateProfile: vi.fn(),
     connectionRole: 'root',
     isGatewayHost: false,
     isConnectionRoleLoading: false,
@@ -41,6 +45,22 @@ vi.mock('#/hooks/use-app-connection', () => ({
 }))
 vi.mock('#/hooks/use-studio-service', () => ({
   useStudioService: () => ({ provider: 'opensource' }),
+}))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    ...props
+  }: {
+    children: ReactNode
+    to: string
+    className?: string
+    onClick?: () => void
+  }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
 }))
 vi.mock('#/lib/admin', () => ({
   fetchAdminAccounts: fetchAccounts,

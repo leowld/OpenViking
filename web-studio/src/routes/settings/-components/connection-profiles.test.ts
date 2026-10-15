@@ -94,10 +94,25 @@ it('keeps unverified default identities separate when their keys differ', () => 
   expect(connectionState.activateProfile).toHaveBeenCalledWith('other')
 })
 
+it('compacts default/default and shows other hosted account/user identities', () => {
+  connectionState.profiles = [
+    hosted('personal', 'default', 'default'),
+    hosted('enterprise-alice', 'study', 'alice'),
+    hosted('enterprise-bob', 'study', 'bob'),
+  ]
+
+  render(React.createElement(ConnectionProfilesList))
+
+  expect(screen.getByText('[default]')).toBeTruthy()
+  expect(screen.queryByText('[default/default]')).toBeNull()
+  expect(screen.getByText('[study/alice]')).toBeTruthy()
+  expect(screen.getByText('[study/bob]')).toBeTruthy()
+})
+
 it('lets every record in an identical connection group be managed', () => {
   connectionState.profiles = [
-    hosted('duplicate', 'study'),
-    hosted('active', 'study'),
+    hosted('duplicate', 'default', 'default'),
+    hosted('active', 'default', 'default'),
   ]
 
   const { container } = render(React.createElement(ConnectionProfilesList))
@@ -105,9 +120,14 @@ it('lets every record in an identical connection group be managed', () => {
   expect(group).not.toBeNull()
   expect(group?.open).toBe(false)
   expect(within(group!).getByText('profiles.title · 2')).toBeTruthy()
+  expect(
+    within(group!.querySelector('summary')!).getByText('[default]'),
+  ).toBeTruthy()
 
   fireEvent.click(group!.querySelector('summary')!)
   expect(group?.open).toBe(true)
+  expect(within(group!).queryAllByText('[default]')).toHaveLength(3)
+  expect(within(group!).queryByText('[default/default]')).toBeNull()
   expect(
     within(group!).getAllByRole('button', { name: 'profiles.edit' }),
   ).toHaveLength(2)

@@ -40,6 +40,20 @@ export function normalizeProfileConnection(
   }
 }
 
+export function connectionProfileFingerprint(
+  connection: ConnectionDraft,
+): string {
+  const normalized = normalizeProfileConnection(connection)
+  return JSON.stringify([
+    normalized.serviceSelection,
+    normalized.baseUrl.trim().replace(/\/+$/, ''),
+    normalized.accountId,
+    normalized.userId,
+    normalized.apiKey,
+    normalized.adminApiKey,
+  ])
+}
+
 export function readConnectionProfiles(
   fallback: ConnectionDraft,
 ): ConnectionProfiles {
