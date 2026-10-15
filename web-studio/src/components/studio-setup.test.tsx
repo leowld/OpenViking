@@ -159,7 +159,7 @@ it('keeps a new hosted API key empty each time setup opens', async () => {
     screen.getByLabelText<HTMLInputElement>('settings:fields.userApiKey').value,
   ).toBe('')
 })
-it('keeps same-address profiles with different keys or users selectable', async () => {
+it('labels hosted connections by workspace and user while preserving distinct keys', async () => {
   const connection = {
     serviceSelection: 'volcengine',
     baseUrl: 'https://hosted.test/ov',
@@ -194,19 +194,77 @@ it('keeps same-address profiles with different keys or users selectable', async 
   ).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
-  expect(selector.textContent).toContain('Alice · team/alice')
+  expect(selector.textContent).toContain(
+    'studio:providers.volcengine · team/alice (1)',
+  )
+  expect(selector.textContent).not.toContain('Alice')
   const user = userEvent.setup()
   await user.click(selector)
   expect(await screen.findAllByRole('option')).toHaveLength(4)
   expect(screen.queryByRole('option', { name: /Old Alice/ })).toBeNull()
-  expect(screen.getByRole('option', { name: 'Bob · team/alice' })).toBeTruthy()
   expect(
-    screen.getByRole('option', { name: 'Carol · team/carol' }),
+    screen.getByRole('option', {
+      name: 'studio:providers.volcengine · team/alice (1)',
+    }),
   ).toBeTruthy()
-  await user.click(screen.getByRole('option', { name: 'Bob · team/alice' }))
-  expect(selector.textContent).toContain('Bob · team/alice')
+  expect(
+    screen.getByRole('option', {
+      name: 'studio:providers.volcengine · team/alice (2)',
+    }),
+  ).toBeTruthy()
+  expect(
+    screen.getByRole('option', {
+      name: 'studio:providers.volcengine · team/carol',
+    }),
+  ).toBeTruthy()
+  await user.click(
+    screen.getByRole('option', {
+      name: 'studio:providers.volcengine · team/alice (2)',
+    }),
+  )
+  expect(selector.textContent).toContain(
+    'studio:providers.volcengine · team/alice (2)',
+  )
   expect(screen.queryByLabelText('settings:fields.userApiKey')).toBeNull()
   expect(document.body.textContent).not.toContain('bob-key')
+})
+it('labels a personal hosted connection as default without the profile name or user ID', async () => {
+  localStorage.setItem(
+    'ov_console_connection_profiles',
+    JSON.stringify({
+      activeId: 'personal',
+      profiles: [
+        {
+          id: 'personal',
+          name: 'Default',
+          connection: {
+            serviceSelection: 'volcengine',
+            baseUrl: 'https://hosted.test/ov',
+            apiKey: 'personal-key',
+            adminApiKey: '',
+            accountId: 'default',
+            userId: 'wld',
+          },
+        },
+      ],
+    }),
+  )
+  render(<StudioSetup onComplete={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
+  expect(selector.textContent).toContain(
+    'studio:providers.volcengine · default',
+  )
+  expect(selector.textContent).not.toContain('Default')
+  expect(selector.textContent).not.toContain('wld')
+  const user = userEvent.setup()
+  await user.click(selector)
+  expect(
+    await screen.findByRole('option', {
+      name: 'studio:providers.volcengine · default',
+    }),
+  ).toBeTruthy()
+  expect(screen.queryByRole('option', { name: 'Default · wld' })).toBeNull()
 })
 it('verifies a selected hosted connection with its saved key without displaying it', async () => {
   const connection = {
@@ -233,7 +291,7 @@ it('verifies a selected hosted connection with its saved key without displaying 
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   expect(
     screen.getByRole('combobox', { name: 'connectionChoice' }).textContent,
-  ).toContain('Alice · team/alice')
+  ).toContain('team/alice')
   expect(screen.queryByLabelText('settings:fields.userApiKey')).toBeNull()
   expect(document.body.textContent).not.toContain('saved-secret-key')
   fireEvent.click(screen.getByRole('button', { name: 'verify' }))
@@ -285,15 +343,15 @@ it('keeps the selected hosted profile stable while its verification is pending',
   render(<StudioSetup onComplete={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
-  expect(selector.textContent).toContain('Alice · team/alice')
+  expect(selector.textContent).toContain('team/alice')
   fireEvent.click(screen.getByRole('button', { name: 'verify' }))
   expect(mocks.verify).toHaveBeenCalledWith(
     expect.objectContaining({ apiKey: 'alice-secret' }),
     expect.any(AbortSignal),
   )
   await user.click(selector)
-  expect(screen.queryByRole('option', { name: 'Bob · team/bob' })).toBeNull()
-  expect(selector.textContent).toContain('Alice · team/alice')
+  expect(screen.queryByRole('option', { name: 'team/bob' })).toBeNull()
+  expect(selector.textContent).toContain('team/alice')
   await act(async () => finishVerify?.(alice))
   await screen.findByRole('status')
   fireEvent.click(screen.getByRole('button', { name: 'enter' }))
@@ -328,7 +386,7 @@ it('creates a hosted connection without reusing the selected saved profile ID', 
   expect(screen.queryByRole('textbox', { name: 'hostedEndpoint' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
-  expect(selector.textContent).toContain('Alice · team/alice')
+  expect(selector.textContent).toContain('team/alice')
   await user.click(selector)
   await user.click(
     await screen.findByRole('option', { name: 'newApiKeyConnection' }),

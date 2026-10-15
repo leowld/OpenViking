@@ -64,7 +64,19 @@ function canReuseSavedConnection(profile: SavedConnection): boolean {
   )
 }
 
-function savedConnectionTitle(profile: SavedConnection): string {
+function savedConnectionTitle(
+  profile: SavedConnection,
+  hostedProviderName: string,
+): string {
+  if (profile.connection.serviceSelection === 'volcengine') {
+    const account = profile.connection.accountId.trim()
+    const user = profile.connection.userId.trim()
+    const identity =
+      account === 'default'
+        ? account
+        : [account, user].filter(Boolean).join('/') || profile.name
+    return `${hostedProviderName} · ${identity}`
+  }
   const identity = [
     profile.connection.accountId,
     profile.connection.userId,
@@ -77,12 +89,12 @@ function savedConnectionTitle(profile: SavedConnection): string {
 function savedConnectionLabel(
   profile: SavedConnection,
   profiles: SavedConnection[],
+  hostedProviderName: string,
 ): string {
-  const title = savedConnectionTitle(profile)
+  const title = savedConnectionTitle(profile, hostedProviderName)
   const sameLabel = profiles.filter(
     (candidate) =>
-      savedConnectionTitle(candidate) === title &&
-      candidate.connection.baseUrl === profile.connection.baseUrl,
+      savedConnectionTitle(candidate, hostedProviderName) === title,
   )
   if (sameLabel.length < 2) return title
   return `${title} (${sameLabel.findIndex((candidate) => candidate.id === profile.id) + 1})`
@@ -107,6 +119,7 @@ export function StudioSetup({
   onComplete: (connection: ConnectionDraft) => void
 }) {
   const { t, i18n } = useTranslation(['onboarding', 'studio', 'settings'])
+  const hostedProviderName = t('studio:providers.volcengine')
   const { theme, setTheme } = useTheme()
   const [step, setStep] = useState(0)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -511,6 +524,7 @@ export function StudioSetup({
                               ? savedConnectionLabel(
                                   selectedProfile,
                                   providerConnections,
+                                  hostedProviderName,
                                 )
                               : t('newConnection')}
                           </SelectValue>
@@ -530,6 +544,7 @@ export function StudioSetup({
                                 {savedConnectionLabel(
                                   profile,
                                   providerConnections,
+                                  hostedProviderName,
                                 )}
                               </span>
                             </SelectItem>
@@ -686,6 +701,7 @@ export function StudioSetup({
                                 ? savedConnectionLabel(
                                     selectedProfile,
                                     providerConnections,
+                                    hostedProviderName,
                                   )
                                 : t('newApiKeyConnection')}
                             </SelectValue>
@@ -705,6 +721,7 @@ export function StudioSetup({
                                   {savedConnectionLabel(
                                     profile,
                                     providerConnections,
+                                    hostedProviderName,
                                   )}
                                 </span>
                               </SelectItem>
