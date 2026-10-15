@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -108,7 +109,7 @@ it('deduplicates identical saved connections and keeps the active profile', asyn
     screen.getByLabelText<HTMLInputElement>('settings:fields.baseUrl').value,
   ).toBe('')
 })
-it('requires re-entering saved credentials each time setup opens', () => {
+it('keeps a new hosted API key empty each time setup opens', async () => {
   localStorage.setItem(
     'ov_console_connection_profiles',
     JSON.stringify({
@@ -129,8 +130,17 @@ it('requires re-entering saved credentials each time setup opens', () => {
       ],
     }),
   )
+  const user = userEvent.setup()
   const first = render(<StudioSetup onComplete={vi.fn()} />)
+  expect(
+    screen.queryByRole('combobox', { name: 'connectionChoice' }),
+  ).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'hostedEndpoint' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  await user.click(screen.getByRole('combobox', { name: 'connectionChoice' }))
+  await user.click(
+    await screen.findByRole('option', { name: 'newApiKeyConnection' }),
+  )
   const key = screen.getByLabelText<HTMLInputElement>(
     'settings:fields.userApiKey',
   )
@@ -141,6 +151,10 @@ it('requires re-entering saved credentials each time setup opens', () => {
 
   render(<StudioSetup onComplete={vi.fn()} />)
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  await user.click(screen.getByRole('combobox', { name: 'connectionChoice' }))
+  await user.click(
+    await screen.findByRole('option', { name: 'newApiKeyConnection' }),
+  )
   expect(
     screen.getByLabelText<HTMLInputElement>('settings:fields.userApiKey').value,
   ).toBe('')
@@ -175,6 +189,10 @@ it('keeps same-address profiles with different keys or users selectable', async 
     }),
   )
   render(<StudioSetup onComplete={vi.fn()} />)
+  expect(
+    screen.queryByRole('combobox', { name: 'connectionChoice' }),
+  ).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
   const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
   expect(selector.textContent).toContain('Alice · team/alice')
   const user = userEvent.setup()
@@ -187,10 +205,103 @@ it('keeps same-address profiles with different keys or users selectable', async 
   ).toBeTruthy()
   await user.click(screen.getByRole('option', { name: 'Bob · team/alice' }))
   expect(selector.textContent).toContain('Bob · team/alice')
+  expect(screen.queryByLabelText('settings:fields.userApiKey')).toBeNull()
+  expect(document.body.textContent).not.toContain('bob-key')
+})
+it('verifies a selected hosted connection with its saved key without displaying it', async () => {
+  const connection = {
+    serviceSelection: 'volcengine',
+    baseUrl: 'https://hosted.test/ov',
+    apiKey: 'saved-secret-key',
+    adminApiKey: '',
+    accountId: 'team',
+    userId: 'alice',
+  }
+  localStorage.setItem(
+    'ov_console_connection_profiles',
+    JSON.stringify({
+      activeId: 'alice',
+      profiles: [{ id: 'alice', name: 'Alice', connection }],
+    }),
+  )
+  mocks.verify.mockImplementation(async (draft) => draft)
+  render(<StudioSetup onComplete={vi.fn()} />)
+  expect(
+    screen.queryByRole('combobox', { name: 'connectionChoice' }),
+  ).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'hostedEndpoint' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   expect(
-    screen.getByLabelText<HTMLInputElement>('settings:fields.userApiKey').value,
-  ).toBe('')
+    screen.getByRole('combobox', { name: 'connectionChoice' }).textContent,
+  ).toContain('Alice · team/alice')
+  expect(screen.queryByLabelText('settings:fields.userApiKey')).toBeNull()
+  expect(document.body.textContent).not.toContain('saved-secret-key')
+  fireEvent.click(screen.getByRole('button', { name: 'verify' }))
+  await waitFor(() =>
+    expect(mocks.verify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseUrl: 'https://hosted.test/ov',
+        apiKey: 'saved-secret-key',
+      }),
+      expect.any(AbortSignal),
+    ),
+  )
+  await screen.findByRole('status')
+  fireEvent.click(screen.getByRole('button', { name: 'enter' }))
+  expect(mocks.complete).toHaveBeenCalledWith(
+    expect.objectContaining({ apiKey: 'saved-secret-key' }),
+    'studio:providers.volcengine',
+    'alice',
+  )
+})
+it('keeps the selected hosted profile stable while its verification is pending', async () => {
+  const alice = {
+    serviceSelection: 'volcengine',
+    baseUrl: 'https://hosted.test/ov',
+    apiKey: 'alice-secret',
+    adminApiKey: '',
+    accountId: 'team',
+    userId: 'alice',
+  }
+  const bob = { ...alice, apiKey: 'bob-secret', userId: 'bob' }
+  localStorage.setItem(
+    'ov_console_connection_profiles',
+    JSON.stringify({
+      activeId: 'alice',
+      profiles: [
+        { id: 'alice', name: 'Alice', connection: alice },
+        { id: 'bob', name: 'Bob', connection: bob },
+      ],
+    }),
+  )
+  let finishVerify: ((connection: typeof alice) => void) | undefined
+  mocks.verify.mockImplementation(
+    () =>
+      new Promise<typeof alice>((resolve) => {
+        finishVerify = resolve
+      }),
+  )
+  const user = userEvent.setup()
+  render(<StudioSetup onComplete={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
+  expect(selector.textContent).toContain('Alice · team/alice')
+  fireEvent.click(screen.getByRole('button', { name: 'verify' }))
+  expect(mocks.verify).toHaveBeenCalledWith(
+    expect.objectContaining({ apiKey: 'alice-secret' }),
+    expect.any(AbortSignal),
+  )
+  await user.click(selector)
+  expect(screen.queryByRole('option', { name: 'Bob · team/bob' })).toBeNull()
+  expect(selector.textContent).toContain('Alice · team/alice')
+  await act(async () => finishVerify?.(alice))
+  await screen.findByRole('status')
+  fireEvent.click(screen.getByRole('button', { name: 'enter' }))
+  expect(mocks.complete).toHaveBeenCalledWith(
+    expect.objectContaining({ apiKey: 'alice-secret' }),
+    'studio:providers.volcengine',
+    'alice',
+  )
 })
 it('creates a hosted connection without reusing the selected saved profile ID', async () => {
   const connection = {
@@ -211,19 +322,25 @@ it('creates a hosted connection without reusing the selected saved profile ID', 
   mocks.verify.mockImplementation(async (draft) => draft)
   render(<StudioSetup onComplete={vi.fn()} />)
   const user = userEvent.setup()
+  expect(
+    screen.queryByRole('combobox', { name: 'connectionChoice' }),
+  ).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'hostedEndpoint' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
   const selector = screen.getByRole('combobox', { name: 'connectionChoice' })
   expect(selector.textContent).toContain('Alice · team/alice')
   await user.click(selector)
-  await user.click(await screen.findByRole('option', { name: 'newConnection' }))
-  expect(selector.textContent).toContain('newConnection')
+  await user.click(
+    await screen.findByRole('option', { name: 'newApiKeyConnection' }),
+  )
+  expect(selector.textContent).toContain('newApiKeyConnection')
   const endpoint = screen.getByRole<HTMLInputElement>('textbox', {
-    name: 'hostedEndpoint',
+    name: 'settings:fields.baseUrl',
   })
   expect(endpoint.value).toBe(
     'https://api.vikingdb.cn-beijing.volces.com/openviking',
   )
   fireEvent.change(endpoint, { target: { value: 'https://hosted.test/ov' } })
-  fireEvent.click(screen.getByRole('button', { name: 'next' }))
   fireEvent.change(screen.getByLabelText('settings:fields.userApiKey'), {
     target: { value: 'bob-key' },
   })
@@ -428,20 +545,20 @@ it('edits the hosted endpoint and uses it for connection verification', async ()
   render(<StudioSetup onComplete={vi.fn()} />)
   fireEvent.click(screen.getByLabelText('studio:providers.volcengine'))
   expect(screen.queryByLabelText('settings:fields.baseUrl')).toBeNull()
+  expect(screen.queryByRole('textbox', { name: 'hostedEndpoint' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
   const endpoint = screen.getByRole<HTMLInputElement>('textbox', {
-    name: 'hostedEndpoint',
+    name: 'settings:fields.baseUrl',
   })
   expect(endpoint.value).toBe(
     'https://api.vikingdb.cn-beijing.volces.com/openviking',
   )
   fireEvent.change(endpoint, { target: { value: 'invalid-address' } })
   expect(
-    screen.getByRole<HTMLButtonElement>('button', { name: 'next' }).disabled,
+    screen.getByRole<HTMLButtonElement>('button', { name: 'verify' }).disabled,
   ).toBe(true)
   fireEvent.change(endpoint, { target: { value: 'https://hosted.test/ov' } })
-  fireEvent.click(screen.getByRole('button', { name: 'next' }))
-  expect(screen.getByText('https://hosted.test/ov')).toBeTruthy()
-  expect(screen.queryByLabelText('settings:fields.baseUrl')).toBeNull()
+  expect(endpoint.value).toBe('https://hosted.test/ov')
   expect(screen.getByText('hostedKeyHelp')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'verify' }))
   expect(screen.getByRole('alert').textContent).toBe('keyRequired')
@@ -476,8 +593,10 @@ it('keeps each workspace draft isolated when switching on the first step', () =>
   fireEvent.click(screen.getByLabelText('studio:providers.volcengine'))
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   expect(
-    screen.getByText('https://api.vikingdb.cn-beijing.volces.com/openviking'),
-  ).toBeTruthy()
+    screen.getByRole<HTMLInputElement>('textbox', {
+      name: 'settings:fields.baseUrl',
+    }).value,
+  ).toBe('https://api.vikingdb.cn-beijing.volces.com/openviking')
   expect(key().value).toBe('')
   fireEvent.change(key(), { target: { value: 'synthetic-cloud' } })
   fireEvent.click(screen.getByRole('button', { name: 'back' }))
@@ -489,7 +608,9 @@ it('keeps each workspace draft isolated when switching on the first step', () =>
   fireEvent.click(screen.getByLabelText('studio:providers.volcengine'))
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   expect(
-    screen.getByText('https://api.vikingdb.cn-beijing.volces.com/openviking'),
-  ).toBeTruthy()
+    screen.getByRole<HTMLInputElement>('textbox', {
+      name: 'settings:fields.baseUrl',
+    }).value,
+  ).toBe('https://api.vikingdb.cn-beijing.volces.com/openviking')
   expect(key().value).toBe('synthetic-cloud')
 })

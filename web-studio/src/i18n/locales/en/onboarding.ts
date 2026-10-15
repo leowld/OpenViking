@@ -16,6 +16,12 @@ export default {
   savedWorkspaces: 'Saved connections',
   connectionChoice: 'Choose a connection',
   newConnection: 'Add a new service address',
+  newApiKeyConnection: 'Enter a new API Key',
+  hostedConnectionHint: 'Choose a saved connection or enter a new API Key.',
+  savedHostedConnectionHelp:
+    'The saved address and key in this browser will be used to verify the connection.',
+  savedConnectionUnavailable:
+    'This saved connection is unavailable. Choose another one or enter a new API Key.',
   newAddressHint: 'Enter a valid HTTP or HTTPS address to continue.',
   hostedEndpoint: 'Service address',
   preferences: 'Preferences',
