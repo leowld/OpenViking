@@ -44,12 +44,13 @@ export async function listSnapshots(
   source: OvClientAdapter,
   uri: string,
   signal: AbortSignal,
+  limit = 20,
 ): Promise<SnapshotCommit[]> {
   try {
     return await getOvResult<SnapshotCommit[]>(
       source.client.get({
         url: '/api/v1/snapshot/log',
-        query: { branch: 'main', limit: 20, paths: [uri] },
+        query: { branch: 'main', limit, paths: [uri] },
         signal,
       }),
     )

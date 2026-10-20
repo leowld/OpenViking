@@ -15,7 +15,6 @@ import { formatDateTime } from '#/i18n/format'
 import {
   commitSnapshot,
   createDataManagementClient,
-  diffSnapshot,
   exportOvpack,
   importOvpack,
   listSnapshots,
@@ -23,11 +22,11 @@ import {
   restoreSnapshot,
 } from '../-lib/data-management'
 import type { RestorePlan, SnapshotCommit } from '../-lib/data-management'
-import { SnapshotDiffViewer } from './snapshot-diff-viewer'
 
 interface Props {
   mode: 'history' | 'transfer'
   onClose: () => void
+  onCompare: () => void
   onChanged: () => void
   uri: string
   isDirectory: boolean
@@ -53,6 +52,7 @@ function downloadBlob(blob: Blob, uri: string): void {
 export function DataManagementDialog({
   mode,
   onClose,
+  onCompare,
   onChanged,
   uri,
   isDirectory,
@@ -66,7 +66,6 @@ export function DataManagementDialog({
   const [message, setMessage] = useState('')
   const [selected, setSelected] = useState<SnapshotCommit | null>(null)
   const [plan, setPlan] = useState<RestorePlan | null>(null)
-  const [diff, setDiff] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [conflict, setConflict] = useState<'fail' | 'skip' | 'overwrite'>(
     'fail',
@@ -107,9 +106,7 @@ export function DataManagementDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className={`max-h-[90dvh] min-w-0 overflow-x-hidden overflow-y-auto ${diff ? 'sm:max-w-5xl' : 'sm:max-w-2xl'}`}
-      >
+      <DialogContent className="max-h-[90dvh] min-w-0 overflow-x-hidden overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {t(mode === 'history' ? 'historyTitle' : 'transferTitle')}
@@ -148,6 +145,11 @@ export function DataManagementDialog({
             <div className="text-xs text-muted-foreground">
               {t('snapshotScope')}
             </div>
+            {!isDirectory && (
+              <Button type="button" variant="outline" onClick={onCompare}>
+                {t('diffComparison')}
+              </Button>
+            )}
             {commits === null ? (
               <p>{t('loading')}</p>
             ) : commits.length === 0 ? (
@@ -156,7 +158,7 @@ export function DataManagementDialog({
               </p>
             ) : (
               <ul className="max-h-56 space-y-2 overflow-y-auto">
-                {commits.map((commit, index) => (
+                {commits.map((commit) => (
                   <li
                     className="flex items-center justify-between gap-2 rounded-md border p-3"
                     key={commit.oid}
@@ -172,14 +174,13 @@ export function DataManagementDialog({
                           : ''}
                       </p>
                     </div>
-                    <Button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async () => {
-                          setSelected(commit)
-                          setPlan(null)
-                          setDiff('')
-                          if (isDirectory) {
+                    {isDirectory && (
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            setSelected(commit)
+                            setPlan(null)
                             setPlan(
                               await previewRestore(
                                 source,
@@ -188,24 +189,14 @@ export function DataManagementDialog({
                                 signal,
                               ),
                             )
-                          } else {
-                            setDiff(
-                              await diffSnapshot(
-                                source,
-                                uri,
-                                commit.oid,
-                                commits[index + 1]?.oid,
-                                signal,
-                              ),
-                            )
-                          }
-                        })
-                      }
-                      size="sm"
-                      variant="outline"
-                    >
-                      {t(isDirectory ? 'previewRestore' : 'viewDiff')}
-                    </Button>
+                          })
+                        }
+                        size="sm"
+                        variant="outline"
+                      >
+                        {t('previewRestore')}
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -251,9 +242,6 @@ export function DataManagementDialog({
                   {t('confirmRestore')}
                 </Button>
               </div>
-            )}
-            {selected && !isDirectory && diff && (
-              <SnapshotDiffViewer diff={diff} />
             )}
           </div>
         ) : (

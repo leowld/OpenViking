@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  diffSnapshot,
   exportOvpack,
   importOvpack,
   listSnapshots,
@@ -48,6 +49,26 @@ describe('data management API', () => {
     expect(mocks.get).toHaveBeenCalledWith({
       url: '/api/v1/snapshot/log',
       query: { branch: 'main', limit: 20, paths: [uri] },
+      signal,
+    })
+  })
+
+  it('loads more history for version selection and compares chosen refs', async () => {
+    mocks.get.mockResolvedValue({ data: { result: [] } })
+    await listSnapshots(source, uri, signal, 500)
+    expect(mocks.get).toHaveBeenCalledWith({
+      url: '/api/v1/snapshot/log',
+      query: { branch: 'main', limit: 500, paths: [uri] },
+      signal,
+    })
+
+    mocks.get.mockResolvedValue({ data: { result: { diff_text: 'diff' } } })
+    await expect(
+      diffSnapshot(source, uri, 'target-oid', 'base-oid', signal),
+    ).resolves.toBe('diff')
+    expect(mocks.get).toHaveBeenLastCalledWith({
+      url: '/api/v1/snapshot/diff',
+      query: { path: uri, to: 'target-oid', from: 'base-oid' },
       signal,
     })
   })

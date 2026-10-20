@@ -6,6 +6,7 @@ import {
   ArrowLeftIcon,
   BotIcon,
   ClipboardIcon,
+  Columns2Icon,
   HistoryIcon,
   PackageIcon,
   PanelRightCloseIcon,
@@ -55,6 +56,7 @@ import {
 } from './-components/context-explorer'
 import { TerminalPanel } from './-components/terminal-panel'
 import { DataManagementDialog } from './-components/data-management-dialog'
+import { SnapshotComparisonDialog } from './-components/snapshot-comparison-dialog'
 import {
   ROOT_URI,
   FILESYSTEM_LEFT_WIDTH,
@@ -147,7 +149,7 @@ function FilesystemWorkbench() {
   const [findPaletteOpen, setFindPaletteOpen] = useState(false)
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [dataManagementMode, setDataManagementMode] = useState<
-    'history' | 'transfer' | null
+    'history' | 'transfer' | 'compare' | null
   >(null)
   const [openingUri, setOpeningUri] = useState<string | null>(null)
   const layoutRef = useRef<HTMLDivElement>(null)
@@ -647,6 +649,18 @@ function FilesystemWorkbench() {
                 <HistoryIcon className="size-4" />
               </Button>
             ) : null}
+            {canManageSelectedUri && !selectedIsDirectory ? (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                title={t('dataManagement:diffComparison')}
+                aria-label={t('dataManagement:diffComparison')}
+                onClick={() => setDataManagementMode('compare')}
+              >
+                <Columns2Icon className="size-4" />
+              </Button>
+            ) : null}
             {canTransferSelectedUri ? (
               <Button
                 type="button"
@@ -785,11 +799,18 @@ function FilesystemWorkbench() {
           />
         </>
       ) : null}
-      {dataManagementMode ? (
+      {dataManagementMode === 'compare' ? (
+        <SnapshotComparisonDialog
+          key={`${identityScopeKey}:${selectedUri}:compare`}
+          onClose={() => setDataManagementMode(null)}
+          uri={selectedUri}
+        />
+      ) : dataManagementMode ? (
         <DataManagementDialog
           key={`${identityScopeKey}:${selectedUri}:${dataManagementMode}`}
           mode={dataManagementMode}
           onClose={() => setDataManagementMode(null)}
+          onCompare={() => setDataManagementMode('compare')}
           onChanged={() => void invalidateAll()}
           uri={selectedUri}
           isDirectory={selectedIsDirectory}
