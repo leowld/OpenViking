@@ -23,6 +23,7 @@ import {
   restoreSnapshot,
 } from '../-lib/data-management'
 import type { RestorePlan, SnapshotCommit } from '../-lib/data-management'
+import { SnapshotDiffViewer } from './snapshot-diff-viewer'
 
 interface Props {
   mode: 'history' | 'transfer'
@@ -106,7 +107,9 @@ export function DataManagementDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+      <DialogContent
+        className={`max-h-[90dvh] min-w-0 overflow-x-hidden overflow-y-auto ${diff ? 'sm:max-w-5xl' : 'sm:max-w-2xl'}`}
+      >
         <DialogHeader>
           <DialogTitle>
             {t(mode === 'history' ? 'historyTitle' : 'transferTitle')}
@@ -115,7 +118,7 @@ export function DataManagementDialog({
         </DialogHeader>
 
         {mode === 'history' ? (
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <form
               className="flex gap-2"
               onSubmit={(event) => {
@@ -250,9 +253,7 @@ export function DataManagementDialog({
               </div>
             )}
             {selected && !isDirectory && diff && (
-              <pre className="max-h-64 overflow-auto rounded bg-muted p-3 text-xs">
-                {diff}
-              </pre>
+              <SnapshotDiffViewer diff={diff} />
             )}
           </div>
         ) : (

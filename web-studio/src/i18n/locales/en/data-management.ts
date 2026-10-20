@@ -10,6 +10,10 @@ const dataManagement = {
   noSnapshots: 'No snapshots for this path yet.',
   previewRestore: 'Preview restore',
   viewDiff: 'View diff',
+  diffComparison: 'Version comparison',
+  previousVersion: 'Previous version',
+  selectedVersion: 'Selected version',
+  diffSection: 'Change section {{number}}',
   restorePreview: 'Restore preview',
   restoreCounts: '{{written}} files to write, {{deleted}} files to delete',
   restoreNotice:

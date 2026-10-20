@@ -9,6 +9,10 @@ const dataManagement = {
   noSnapshots: '当前路径还没有快照。',
   previewRestore: '预览恢复',
   viewDiff: '查看差异',
+  diffComparison: '版本对比',
+  previousVersion: '上一版本',
+  selectedVersion: '所选版本',
+  diffSection: '变更区块 {{number}}',
   restorePreview: '恢复预览',
   restoreCounts: '将写入 {{written}} 个文件，删除 {{deleted}} 个文件',
   restoreNotice:
