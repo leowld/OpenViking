@@ -145,11 +145,6 @@ export function DataManagementDialog({
             <div className="text-xs text-muted-foreground">
               {t('snapshotScope')}
             </div>
-            {!isDirectory && (
-              <Button type="button" variant="outline" onClick={onCompare}>
-                {t('diffComparison')}
-              </Button>
-            )}
             {commits === null ? (
               <p>{t('loading')}</p>
             ) : commits.length === 0 ? (
@@ -200,6 +195,13 @@ export function DataManagementDialog({
                   </li>
                 ))}
               </ul>
+            )}
+            {!isDirectory && commits && commits.length > 0 && (
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" onClick={onCompare}>
+                  {t('diffComparison')}
+                </Button>
+              </div>
             )}
             {selected && plan && (
               <div className="space-y-3 rounded-md border p-3">
