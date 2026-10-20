@@ -20,8 +20,9 @@ from .capture import reset_capture
 from .client import VikingError
 from .config import MOUNT_PATH
 from .models import CaptureReset, KeyRequest, Policy, Upstream, UpstreamTestRequest
+from .overview import overview_summary
 from .protocols import text_content
-from .proxy import upstream_headers, upstream_url
+from .proxy import fill_key, upstream_headers, upstream_key, upstream_url
 from .records import RecordKind as K
 from .storage import delete_account_data, delete_user_data, digest
 from .tool_catalog import select_tools
@@ -30,7 +31,16 @@ from .tool_protocols import ResponseCapture, tool_protocol
 PREFIX = "/admin"
 MANAGEMENT_HEADER = "x-openviking-gateway-management-key"
 # Fields a VLM re-import refreshes; everything else may have been edited in the gateway.
-VLM_SOURCE_FIELDS = ("base_url", "api_key", "headers", "protocol", "vendor", "coding_plan")
+VLM_SOURCE_FIELDS = (
+    "base_url",
+    "api_key",
+    "headers",
+    "protocol",
+    "vendor",
+    "coding_plan",
+    "append_endpoint_path",
+    "key_header",
+)
 UPSTREAM_TEST_PATHS = {
     "anthropic": "/v1/messages",
     "chat": "/v1/chat/completions",
@@ -239,7 +249,7 @@ def register_management(app):
         who = await caller(request)
         logs = await management.logs(who.account_id, 10000, user_id=who.log_user)
         return {
-            **overview_summary(logs),
+            **overview_summary(logs, time.time()),
             "openviking": app.state.health,
             "log_retention_days": app.state.config.log_retention_days,
         }
@@ -461,12 +471,17 @@ def register_management(app):
         assert data is not None
         generating = data.model is not None
         kind = "model" if generating else "connection"
+        if not generating and not upstream.get("append_endpoint_path", True):
+            # An exact endpoint has no model list; only a generation test can reach it.
+            url = upstream_url(upstream, UPSTREAM_TEST_PATHS[upstream["protocol"]])
+            return {"ok": False, "reason": "exact_endpoint_untestable", "url": url, "kind": kind}
         path = UPSTREAM_TEST_PATHS[upstream["protocol"]] if generating else "/v1/models"
         url = upstream_url(upstream, path)
         if generating and upstream.get("coding_plan") and not upstream.get("allow_coding_plan"):
             return {"ok": False, "reason": "coding_plan_blocked", "url": url, "kind": kind}
         try:
             headers = upstream_headers(upstream, {})
+            target = fill_key(url, upstream_key(upstream, {}))
         except HTTPException as error:
             if error.status_code != 401:
                 raise
@@ -491,7 +506,7 @@ def register_management(app):
         try:
             async with app.state.http.request(
                 "POST" if generating else "GET",
-                url,
+                target,
                 data=orjson.dumps(payload) if payload is not None else None,
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(
@@ -502,9 +517,7 @@ def register_management(app):
                 status = response.status
                 raw = bytearray()
                 while len(raw) <= UPSTREAM_TEST_RESPONSE_LIMIT:
-                    chunk = await response.content.read(
-                        UPSTREAM_TEST_RESPONSE_LIMIT + 1 - len(raw)
-                    )
+                    chunk = await response.content.read(UPSTREAM_TEST_RESPONSE_LIMIT + 1 - len(raw))
                     if not chunk:
                         break
                     raw.extend(chunk)
@@ -611,55 +624,3 @@ def keep_upstream_secrets(payload, previous):
             if value or name in stored
         }
     return payload
-
-
-def overview_summary(logs):
-    """Aggregate newest-first request-log records into the management overview."""
-    requests = [log for log in logs if log.get("kind") != "capture"]
-    groups = {}
-    for label, kinds in (("first_call", {"user"}), ("continuation", {"continuation"})):
-        subset = [log for log in requests if log.get("kind") in kinds]
-        total = sum(
-            log.get("first_upstream_input_tokens", log.get("input_tokens", 0)) for log in subset
-        )
-        cached = sum(
-            log.get("first_upstream_cached_tokens", log.get("cached_tokens", 0)) for log in subset
-        )
-        hidden_calls = 0
-        if label == "continuation":
-            total += sum(log.get("hidden_upstream_input_tokens", 0) for log in requests)
-            cached += sum(log.get("hidden_upstream_cached_tokens", 0) for log in requests)
-            hidden_calls = sum(log.get("hidden_upstream_calls", 0) for log in requests)
-        groups[label] = {
-            "requests": len(subset) + hidden_calls,
-            "input_tokens": total,
-            "cached_tokens": cached,
-            "cache_hit_ratio": cached / total if total else 0,
-        }
-    degradations = {}
-    for log in logs:
-        if reason := log.get("degradation"):
-            degradations[reason] = degradations.get(reason, 0) + 1
-    # "disabled" means recall was skipped (off, budget spent or query too short).
-    recalls = [log for log in requests if log.get("recall_reason", "disabled") != "disabled"]
-    capture = {}
-    for log in logs:
-        if log.get("session") and log.get("capture_status"):
-            capture.setdefault((log["session"], log.get("protocol")), log["capture_status"])
-    return {
-        "requests": len(requests),
-        "last_request_at": requests[0].get("time") if requests else None,
-        "output_tokens": sum(log.get("output_tokens", 0) for log in requests),
-        "cache": groups,
-        "degradations": degradations,
-        "recall_count": sum(log.get("recall_count", 0) for log in requests),
-        "recall_requests": len(recalls),
-        "recall_ms": sum(log.get("recall_ms", 0) for log in recalls) / len(recalls)
-        if recalls
-        else 0,
-        "capture_issues": {
-            status: sum(1 for value in capture.values() if value == status)
-            for status in ("retrying", "paused")
-        },
-        "sample_limit": 10000,
-    }

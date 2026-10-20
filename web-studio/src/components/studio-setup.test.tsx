@@ -36,7 +36,10 @@ vi.mock('#/lib/connection/onboarding', async (original) => ({
   verifyStudioSetup: mocks.verify,
   completeStudioSetup: mocks.complete,
 }))
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllEnvs()
+})
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
@@ -303,7 +306,7 @@ it('offers the local development service when only a hosted link is saved', () =
   fireEvent.click(screen.getByLabelText('studio:providers.opensource'))
   expect(
     screen.getByRole('combobox', { name: 'connectionChoice' }).textContent,
-  ).toContain('Local OpenViking')
+  ).toContain('studio:localConnection')
   expect(screen.getAllByTitle('http://127.0.0.1:1933').length).toBeGreaterThan(
     0,
   )
@@ -524,4 +527,12 @@ it('keeps each workspace draft isolated when switching on the first step', () =>
   )
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   expect(key().value).toBe('synthetic-cloud')
+})
+
+it('loads the logo from the deployment base path', () => {
+  vi.stubEnv('BASE_URL', '/studio/')
+  const { container } = render(<StudioSetup onComplete={vi.fn()} />)
+  expect(container.querySelector('img')?.getAttribute('src')).toBe(
+    '/studio/ov-logo.png',
+  )
 })

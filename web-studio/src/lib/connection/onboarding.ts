@@ -1,3 +1,4 @@
+import i18n from '#/i18n/core'
 import { resolveConnectionDataRoot } from './probe'
 import type { ConnectionDraft } from '#/lib/connection/types'
 import { createConnectionHealthHeaders } from './auth'
@@ -66,7 +67,12 @@ function hasConnection(value: unknown, completed = false): boolean {
 
 export function needsStudioSetup(): boolean {
   try {
-    return sessionStorage.getItem(WORKSPACE_SESSION_KEY) !== 'selected'
+    // A new tab must reuse an existing connection, including pre-onboarding
+    // installations. The session marker alone only survives a tab reload.
+    return (
+      sessionStorage.getItem(WORKSPACE_SESSION_KEY) !== 'selected' &&
+      savedSetupConnections().length === 0
+    )
   } catch {
     return true
   }
@@ -103,7 +109,12 @@ export function savedSetupConnections(): Array<{
     const legacy: unknown = JSON.parse(
       localStorage.getItem('ov_console_connection') || 'null',
     )
-    if (hasConnection(legacy))
+    if (
+      hasConnection(
+        legacy,
+        localStorage.getItem(SETUP_STORAGE_KEY) === 'complete',
+      )
+    )
       return [
         {
           id: 'default',
@@ -136,7 +147,7 @@ export async function verifyStudioSetup(
     adminApiKey: draft.adminApiKey.trim(),
   })
   if (!isValidConnectionUrl(connection.baseUrl))
-    throw new Error('Invalid server URL')
+    throw new Error(i18n.t('studio:errors.invalidServerUrl'))
   if (connection.serviceSelection === 'volcengine') connection.adminApiKey = ''
   const health = await fetchConnectionHealth(connection, signal).catch(
     (error: unknown) => {
