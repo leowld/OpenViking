@@ -1,0 +1,39 @@
+const dataManagement = {
+  historyTitle: 'Version history',
+  transferTitle: 'Import and export',
+  message: 'Describe this snapshot',
+  saveSnapshot: 'Save snapshot',
+  snapshotSaved: 'Snapshot saved',
+  snapshotScope:
+    'Only the selected path is included. Excluded files, permissions, and vector indexes are not versioned.',
+  loading: 'Loading history...',
+  noSnapshots: 'No snapshots for this path yet.',
+  previewRestore: 'Preview restore',
+  viewDiff: 'View diff',
+  restorePreview: 'Restore preview',
+  restoreCounts: '{{written}} files to write, {{deleted}} files to delete',
+  restoreNotice:
+    'The preview compares saved snapshots and does not show unsaved edits. Restore may overwrite those edits. Permissions and vector indexes are not restored; indexing continues in the background.',
+  confirmRestore: 'Restore this directory',
+  noChanges: 'No changes',
+  restored: 'Directory restored',
+  headChanged: 'The latest snapshot changed. Preview the restore again.',
+  invalidExport: 'The server returned an invalid OVPack export.',
+  missingUploadId: 'The server did not return an upload ID.',
+  exportTitle: 'Export this directory',
+  exportDescription:
+    'Download an OVPack file. Vectors are omitted so it can be imported across environments.',
+  exportAction: 'Download OVPack',
+  exported: 'OVPack downloaded',
+  importTitle: 'Import into this directory',
+  importDescription: 'Choose an OVPack file and how to handle existing files.',
+  chooseFile: 'Choose OVPack file',
+  conflict: 'On conflict',
+  conflictFail: 'Stop on conflict',
+  conflictSkip: 'Skip existing files',
+  conflictOverwrite: 'Overwrite existing files',
+  importAction: 'Import OVPack',
+  imported: 'OVPack imported',
+} as const
+
+export default dataManagement
