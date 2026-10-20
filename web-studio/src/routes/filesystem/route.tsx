@@ -6,7 +6,6 @@ import {
   ArrowLeftIcon,
   BotIcon,
   ClipboardIcon,
-  Columns2Icon,
   HistoryIcon,
   PackageIcon,
   PanelRightCloseIcon,
@@ -647,18 +646,6 @@ function FilesystemWorkbench() {
                 onClick={() => setDataManagementMode('history')}
               >
                 <HistoryIcon className="size-4" />
-              </Button>
-            ) : null}
-            {canManageSelectedUri && !selectedIsDirectory ? (
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                title={t('dataManagement:diffComparison')}
-                aria-label={t('dataManagement:diffComparison')}
-                onClick={() => setDataManagementMode('compare')}
-              >
-                <Columns2Icon className="size-4" />
               </Button>
             ) : null}
             {canTransferSelectedUri ? (
