@@ -124,7 +124,7 @@ export function StudioSetup({
     ) {
       profiles.push({
         id: 'local-openviking',
-        name: 'Local OpenViking',
+        name: 'local-openviking',
         connection: {
           ...newConnectionDraft('opensource'),
           baseUrl: 'http://127.0.0.1:1933',
@@ -171,9 +171,16 @@ export function StudioSetup({
     Partial<Record<(typeof PROVIDERS)[number][0], string>>
   >({})
   const [verified, setVerified] = useState<ConnectionDraft | null>(null)
-  const providerConnections = savedConnections.filter(
-    (profile) => profile.connection.serviceSelection === draft.serviceSelection,
-  )
+  const providerConnections = savedConnections
+    .map((profile) =>
+      profile.id === 'local-openviking'
+        ? { ...profile, name: t('studio:localConnection') }
+        : profile,
+    )
+    .filter(
+      (profile) =>
+        profile.connection.serviceSelection === draft.serviceSelection,
+    )
   const selectedProfile = providerConnections.find(
     (profile) => profile.id === selectedConnectionId,
   )
@@ -379,7 +386,11 @@ export function StudioSetup({
     <main className="flex h-svh flex-col items-center overflow-y-auto bg-background px-5 py-6 text-foreground sm:px-8 sm:py-8 lg:pt-[max(2rem,calc((100svh-52rem)/2))]">
       <div className="w-full max-w-5xl shrink-0">
         <div className="mb-6 flex items-center gap-3 lg:mb-8">
-          <img src="/ov-logo.png" alt="" className="size-10 rounded-xl" />
+          <img
+            src={`${import.meta.env.BASE_URL}ov-logo.png`}
+            alt=""
+            className="size-10 rounded-xl"
+          />
           <span className="text-base font-semibold tracking-tight">
             {t('brand')}
           </span>
