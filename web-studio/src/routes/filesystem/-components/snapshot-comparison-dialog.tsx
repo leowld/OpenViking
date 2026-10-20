@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '#/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -58,7 +57,30 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
     return () => controller.current.abort()
   }, [source, uri])
 
-  const signal = controller.current.signal
+  useEffect(() => {
+    setDiff(null)
+    setError('')
+    if (!commits || !target || base === target) {
+      setBusy(false)
+      return
+    }
+
+    const request = new AbortController()
+    setBusy(true)
+    void diffSnapshot(source, uri, target, base || undefined, request.signal)
+      .then((result) => {
+        if (!request.signal.aborted) setDiff(result)
+      })
+      .catch((cause: unknown) => {
+        if (!request.signal.aborted)
+          setError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => {
+        if (!request.signal.aborted) setBusy(false)
+      })
+
+    return () => request.abort()
+  }, [base, commits, source, target, uri])
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -81,7 +103,6 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
                 <span>{t('previousVersion')}</span>
                 <select
                   className="w-full min-w-0 rounded-md border bg-background px-3 py-2 font-normal"
-                  disabled={busy}
                   onChange={(event) => {
                     setBase(event.target.value)
                     setDiff(null)
@@ -100,7 +121,6 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
                 <span>{t('selectedVersion')}</span>
                 <select
                   className="w-full min-w-0 rounded-md border bg-background px-3 py-2 font-normal"
-                  disabled={busy}
                   onChange={(event) => {
                     setTarget(event.target.value)
                     setDiff(null)
@@ -115,35 +135,16 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
                 </select>
               </label>
             </div>
-            <Button
-              disabled={busy || !target || base === target}
-              onClick={() => {
-                setBusy(true)
-                setError('')
-                setDiff(null)
-                void diffSnapshot(
-                  source,
-                  uri,
-                  target,
-                  base || undefined,
-                  signal,
-                )
-                  .then((result) => {
-                    if (!signal.aborted) setDiff(result)
-                  })
-                  .catch((cause: unknown) => {
-                    if (!signal.aborted)
-                      setError(
-                        cause instanceof Error ? cause.message : String(cause),
-                      )
-                  })
-                  .finally(() => {
-                    if (!signal.aborted) setBusy(false)
-                  })
-              }}
-            >
-              {t('compareVersions')}
-            </Button>
+            {busy && (
+              <p role="status" className="text-sm text-muted-foreground">
+                {t('comparingVersions')}
+              </p>
+            )}
+            {base === target && (
+              <p className="text-sm text-muted-foreground">
+                {t('selectDifferentVersions')}
+              </p>
+            )}
             {diff !== null && <SnapshotDiffViewer diff={diff} />}
           </div>
         ) : null}
