@@ -67,7 +67,6 @@ export function DataManagementDialog({
   const { t } = useTranslation('dataManagement')
   const source = useMemo(createDataManagementClient, [])
   const controller = useRef(new AbortController())
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [commits, setCommits] = useState<SnapshotCommit[] | null>(null)
@@ -221,7 +220,6 @@ export function DataManagementDialog({
               </p>
               <div>
                 <input
-                  ref={fileInputRef}
                   id="ovpack-file"
                   accept=".ovpack"
                   aria-label={t('chooseFile')}
@@ -285,9 +283,8 @@ export function DataManagementDialog({
                     if (!file) return
                     await importOvpack(source, uri, file, conflict, signal)
                     if (signal.aborted) return
+                    onClose()
                     onChanged()
-                    setFile(null)
-                    if (fileInputRef.current) fileInputRef.current.value = ''
                     toast.success(t('imported'))
                   })
                 }
