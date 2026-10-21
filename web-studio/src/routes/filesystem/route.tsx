@@ -462,7 +462,7 @@ function FilesystemWorkbench() {
   useEffect(() => {
     setDataManagementMode(null)
   }, [selectedUri])
-  const canManageSelectedUri = canUseLocalTools && selectedUri !== ROOT_URI
+  const canManageSelectedUri = selectedUri !== ROOT_URI
   const canTransferSelectedUri =
     canUseLocalTools && transferUri.startsWith('viking://resources/')
   const displayUri =

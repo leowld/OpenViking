@@ -74,6 +74,29 @@ describe('data management API', () => {
     })
   })
 
+  it('compares saved versions through show when the diff route is unavailable', async () => {
+    mocks.get
+      .mockRejectedValueOnce({ statusCode: 404, message: 'Not found' })
+      .mockResolvedValueOnce({ data: new Blob(['old\n']) })
+      .mockResolvedValueOnce({ data: new Blob(['new\n']) })
+
+    const diff = await diffSnapshot(source, uri, 'new-oid', 'old-oid', signal)
+    expect(diff).toContain('-old')
+    expect(diff).toContain('+new')
+    expect(mocks.get).toHaveBeenNthCalledWith(2, {
+      url: '/api/v1/snapshot/show',
+      query: { target_ref: 'old-oid', path: uri, raw: true },
+      responseType: 'blob',
+      signal,
+    })
+    expect(mocks.get).toHaveBeenNthCalledWith(3, {
+      url: '/api/v1/snapshot/show',
+      query: { target_ref: 'new-oid', path: uri, raw: true },
+      responseType: 'blob',
+      signal,
+    })
+  })
+
   it('compares a saved snapshot with the live file content', async () => {
     mocks.get
       .mockResolvedValueOnce({ data: new Blob(['old\n']) })

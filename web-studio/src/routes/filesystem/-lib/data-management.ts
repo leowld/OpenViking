@@ -85,14 +85,41 @@ export async function diffSnapshot(
   from: string | undefined,
   signal: AbortSignal,
 ): Promise<string> {
-  const result = await getOvResult<{ diff_text: string }>(
-    source.client.get({
-      url: '/api/v1/snapshot/diff',
-      query: { path: uri, to, ...(from ? { from } : {}) },
-      signal,
-    }),
-  )
-  return result.diff_text
+  try {
+    const result = await getOvResult<{ diff_text: string }>(
+      source.client.get({
+        url: '/api/v1/snapshot/diff',
+        query: { path: uri, to, ...(from ? { from } : {}) },
+        signal,
+      }),
+    )
+    return result.diff_text
+  } catch (error) {
+    // Hosted connections expose snapshot/show but may not route snapshot/diff.
+    if (normalizeOvClientError(error).statusCode !== 404) throw error
+    const [older, newer] = await Promise.all([
+      from ? readSnapshotFile(source, uri, from, signal) : Promise.resolve(''),
+      readSnapshotFile(source, uri, to, signal),
+    ])
+    return createPatch(uri, older, newer)
+  }
+}
+
+async function readSnapshotFile(
+  source: OvClientAdapter,
+  uri: string,
+  ref: string,
+  signal: AbortSignal,
+): Promise<string> {
+  const response = await source.client.get({
+    url: '/api/v1/snapshot/show',
+    query: { target_ref: ref, path: uri, raw: true },
+    responseType: 'blob',
+    signal,
+  })
+  if (!(response.data instanceof Blob))
+    throw new Error(i18n.t('dataManagement:invalidSnapshotContent'))
+  return response.data.text()
 }
 
 export async function diffSnapshotWithCurrent(
@@ -101,15 +128,8 @@ export async function diffSnapshotWithCurrent(
   from: string,
   signal: AbortSignal,
 ): Promise<string> {
-  const [snapshot, current] = await Promise.all([
-    from
-      ? source.client.get({
-          url: '/api/v1/snapshot/show',
-          query: { target_ref: from, path: uri, raw: true },
-          responseType: 'blob',
-          signal,
-        })
-      : Promise.resolve(null),
+  const [savedContent, current] = await Promise.all([
+    from ? readSnapshotFile(source, uri, from, signal) : Promise.resolve(''),
     getOvResult<unknown>(
       getContentRead({
         client: source.client,
@@ -120,9 +140,6 @@ export async function diffSnapshotWithCurrent(
       }),
     ),
   ])
-  if (snapshot && !(snapshot.data instanceof Blob))
-    throw new Error(i18n.t('dataManagement:invalidSnapshotContent'))
-  const savedContent = snapshot?.data instanceof Blob ? await snapshot.data.text() : ''
   return createPatch(uri, savedContent, normalizeReadContent(current))
 }
 

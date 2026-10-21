@@ -157,9 +157,18 @@ describe('filesystem context tree refresh', () => {
     expect(mocks.dataManagement.mock.lastCall?.[0].isDirectory).toBe(true)
   })
 
-  it('reuses the same workbench for hosted reads without scope tabs or incompatible local tools', () => {
+  it('offers snapshot history for hosted reads without incompatible local tools', async () => {
     mocks.provider = 'volcengine'
     render(<FilesystemRoute />)
+    await userEvent.click(
+      screen.getByRole('button', { name: 'dataManagement:historyTitle' }),
+    )
+    expect(screen.getByTestId('data-management-uri').textContent).toBe(
+      firstFile,
+    )
+    expect(
+      screen.queryByRole('button', { name: 'dataManagement:transferTitle' }),
+    ).toBeNull()
     expect(screen.getByTestId('preview').textContent).toBe(firstFile)
     expect(mocks.preview.mock.lastCall?.[0].readOnly).not.toBe(true)
     expect(mocks.preview.mock.lastCall?.[0].defaultReadLimit).toBe(10000)
