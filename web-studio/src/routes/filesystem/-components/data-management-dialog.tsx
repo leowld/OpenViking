@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { UploadIcon } from 'lucide-react'
+import { Loader2Icon, UploadIcon } from 'lucide-react'
 
 import { Button } from '#/components/ui/button'
 import {
@@ -72,6 +72,7 @@ export function DataManagementDialog({
   const [commits, setCommits] = useState<SnapshotCommit[] | null>(null)
   const [message, setMessage] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const [transferTab, setTransferTab] = useState('export')
   const [conflict, setConflict] = useState<'fail' | 'skip' | 'overwrite'>(
     'fail',
   )
@@ -183,12 +184,25 @@ export function DataManagementDialog({
             )}
           </div>
         ) : (
-          <Tabs defaultValue="export" onValueChange={() => setError('')}>
+          <Tabs
+            value={transferTab}
+            onValueChange={(value) => {
+              if (busy) return
+              setTransferTab(value)
+              setError('')
+            }}
+          >
             <TabsList className="w-full" aria-label={t('transferTitle')}>
-              <TabsTrigger value="export" disabled={busy}>
+              <TabsTrigger
+                value="export"
+                disabled={busy && transferTab !== 'export'}
+              >
                 {t('exportTab')}
               </TabsTrigger>
-              <TabsTrigger value="import" disabled={busy}>
+              <TabsTrigger
+                value="import"
+                disabled={busy && transferTab !== 'import'}
+              >
                 {t('importTab')}
               </TabsTrigger>
             </TabsList>
@@ -209,6 +223,14 @@ export function DataManagementDialog({
               >
                 {t('exportAction')}
               </Button>
+              {error && (
+                <p
+                  role="alert"
+                  className="break-words text-sm text-destructive"
+                >
+                  {error}
+                </p>
+              )}
             </TabsContent>
             <TabsContent
               value="import"
@@ -278,35 +300,35 @@ export function DataManagementDialog({
               </div>
               <Button
                 disabled={busy || !isDirectory || !file}
-                onClick={() => {
-                  if (!file) return
-                  const importFile = file
-                  const importConflict = conflict
-                  const importUri = uri
-                  const importToast = toast.loading(t('importing'))
-                  onClose()
-                  void importOvpack(
-                    source,
-                    importUri,
-                    importFile,
-                    importConflict,
-                    new AbortController().signal,
-                  )
-                    .then(() => {
-                      onChanged()
-                      toast.success(t('imported'), { id: importToast })
-                    })
-                    .catch((cause) => {
-                      toast.error(errorMessage(cause), { id: importToast })
-                    })
-                }}
+                aria-busy={busy}
+                onClick={() =>
+                  void run(async () => {
+                    if (!file) return
+                    await importOvpack(source, uri, file, conflict, signal)
+                    if (signal.aborted) return
+                    onClose()
+                    onChanged()
+                    toast.success(t('imported'))
+                  })
+                }
               >
-                {t('importAction')}
+                {busy && (
+                  <Loader2Icon aria-hidden="true" className="animate-spin" />
+                )}
+                {t(busy ? 'importing' : 'importAction')}
               </Button>
+              {error && (
+                <p
+                  role="alert"
+                  className="break-words text-sm text-destructive"
+                >
+                  {error}
+                </p>
+              )}
             </TabsContent>
           </Tabs>
         )}
-        {error && (
+        {mode === 'history' && error && (
           <p role="alert" className="text-sm text-destructive">
             {error}
           </p>
