@@ -2,6 +2,8 @@ const dataManagement = {
   historyTitle: '历史版本',
   transferTitle: 'OVPack 导入与导出',
   transferShortLabel: 'OVPack',
+  exportTab: '导出',
+  importTab: '导入',
   message: '描述这次快照',
   saveSnapshot: '保存快照',
   snapshotSaved: '快照已保存',

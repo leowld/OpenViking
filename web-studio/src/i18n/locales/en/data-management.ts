@@ -2,6 +2,8 @@ const dataManagement = {
   historyTitle: 'Version history',
   transferTitle: 'OVPack import and export',
   transferShortLabel: 'OVPack',
+  exportTab: 'Export',
+  importTab: 'Import',
   message: 'Describe this snapshot',
   saveSnapshot: 'Save snapshot',
   snapshotSaved: 'Snapshot saved',

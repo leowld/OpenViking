@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { formatDateTime } from '#/i18n/format'
 
 import {
@@ -181,9 +182,16 @@ export function DataManagementDialog({
             )}
           </div>
         ) : (
-          <div className="space-y-5">
-            <section className="space-y-2 rounded-md border p-4">
-              <h3 className="font-medium">{t('exportTitle')}</h3>
+          <Tabs defaultValue="export" onValueChange={() => setError('')}>
+            <TabsList className="w-full" aria-label={t('transferTitle')}>
+              <TabsTrigger value="export" disabled={busy}>
+                {t('exportTab')}
+              </TabsTrigger>
+              <TabsTrigger value="import" disabled={busy}>
+                {t('importTab')}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="export" className="min-h-52 space-y-4 pt-4">
               <p className="text-xs text-muted-foreground">
                 {t('exportDescription')}
               </p>
@@ -200,9 +208,12 @@ export function DataManagementDialog({
               >
                 {t('exportAction')}
               </Button>
-            </section>
-            <section className="space-y-3 rounded-md border p-4">
-              <h3 className="font-medium">{t('importTitle')}</h3>
+            </TabsContent>
+            <TabsContent
+              value="import"
+              keepMounted
+              className="min-h-52 space-y-4 pt-4"
+            >
               <p className="text-xs text-muted-foreground">
                 {t('importDescription')}
               </p>
@@ -260,8 +271,8 @@ export function DataManagementDialog({
               >
                 {t('importAction')}
               </Button>
-            </section>
-          </div>
+            </TabsContent>
+          </Tabs>
         )}
         {error && (
           <p role="alert" className="text-sm text-destructive">
