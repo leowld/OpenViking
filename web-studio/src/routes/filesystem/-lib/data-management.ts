@@ -18,23 +18,6 @@ export interface SnapshotCommit {
   author?: { name?: string; time_seconds?: number }
 }
 
-export interface RestorePlan {
-  result: 'dry_run'
-  head: string
-  source: string
-  diff: {
-    to_write: Array<{ path: string }>
-    to_delete: string[]
-    unchanged: string[]
-  }
-}
-
-export interface RestoreResult {
-  result: 'applied' | 'noop'
-  new_commit_oid?: string
-  task_id?: string
-}
-
 export function createDataManagementClient(): OvClientAdapter {
   return createOvClient({
     ...ovClient.getOptions(),
@@ -141,40 +124,6 @@ export async function diffSnapshotWithCurrent(
     ),
   ])
   return createPatch(uri, savedContent, normalizeReadContent(current))
-}
-
-export async function previewRestore(
-  source: OvClientAdapter,
-  uri: string,
-  commit: string,
-  signal: AbortSignal,
-): Promise<RestorePlan> {
-  return getOvResult(
-    source.client.post({
-      url: '/api/v1/snapshot/restore',
-      body: { project_dir: uri, source_commit: commit, dry_run: true },
-      signal,
-    }),
-  )
-}
-
-export async function restoreSnapshot(
-  source: OvClientAdapter,
-  uri: string,
-  plan: RestorePlan,
-  signal: AbortSignal,
-): Promise<RestoreResult> {
-  // Recheck HEAD so a later write cannot silently invalidate the preview.
-  const current = await previewRestore(source, uri, plan.source, signal)
-  if (current.head !== plan.head)
-    throw new Error(i18n.t('dataManagement:headChanged'))
-  return getOvResult(
-    source.client.post({
-      url: '/api/v1/snapshot/restore',
-      body: { project_dir: uri, source_commit: plan.source, dry_run: false },
-      signal,
-    }),
-  )
 }
 
 export async function exportOvpack(

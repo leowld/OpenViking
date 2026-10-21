@@ -6,9 +6,7 @@ import {
   exportOvpack,
   importOvpack,
   listSnapshots,
-  restoreSnapshot,
 } from './data-management'
-import type { RestorePlan } from './data-management'
 import type { OvClientAdapter } from '#/lib/ov-client/types'
 
 const mocks = vi.hoisted(() => ({
@@ -117,45 +115,6 @@ describe('data management API', () => {
         raw: true,
       },
       responseType: 'blob',
-      signal,
-    })
-  })
-
-  it('previews restore before writing and rejects a changed HEAD', async () => {
-    const plan: RestorePlan = {
-      result: 'dry_run',
-      head: 'old-head',
-      source: 'commit-1',
-      diff: { to_write: [], to_delete: [], unchanged: [] },
-    }
-    mocks.post.mockResolvedValue({
-      data: { result: { ...plan, head: 'new-head' } },
-    })
-
-    await expect(restoreSnapshot(source, uri, plan, signal)).rejects.toThrow()
-    expect(mocks.post).toHaveBeenCalledTimes(1)
-    expect(mocks.post).toHaveBeenCalledWith({
-      url: '/api/v1/snapshot/restore',
-      body: { project_dir: uri, source_commit: 'commit-1', dry_run: true },
-      signal,
-    })
-  })
-
-  it('applies only the selected subtree after a matching preview', async () => {
-    const plan: RestorePlan = {
-      result: 'dry_run',
-      head: 'head-1',
-      source: 'commit-1',
-      diff: { to_write: [{ path: 'a.md' }], to_delete: [], unchanged: [] },
-    }
-    mocks.post
-      .mockResolvedValueOnce({ data: { result: plan } })
-      .mockResolvedValueOnce({ data: { result: { result: 'applied' } } })
-
-    await restoreSnapshot(source, uri, plan, signal)
-    expect(mocks.post).toHaveBeenLastCalledWith({
-      url: '/api/v1/snapshot/restore',
-      body: { project_dir: uri, source_commit: 'commit-1', dry_run: false },
       signal,
     })
   })

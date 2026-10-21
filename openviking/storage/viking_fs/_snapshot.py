@@ -322,14 +322,14 @@ class _SnapshotMixin:
         author_email: Optional[str] = None,
         ctx: Optional[RequestContext] = None,
     ) -> Dict[str, Any]:
-        """Restore a file or project subtree to the state at ``source_commit``.
+        """Restore a project subtree to the state at ``source_commit``.
 
         Generates a new commit whose parent is the current HEAD (not the
         source commit) and writes the diff through the VFS. Paths outside
         ``project_dir`` are left untouched.
 
         Args:
-            project_dir: ``viking://`` URI of the file or subtree, e.g.
+            project_dir: ``viking://`` URI of the subtree, e.g.
                 ``"viking://resources/proj_a"``. May also be passed as a
                 short form like ``"resources/proj_a"``. Trailing slashes are
                 stripped. Internal scopes are rejected with ``ValueError``.
