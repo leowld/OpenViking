@@ -41,6 +41,8 @@ const dataManagement = {
   importTitle: 'Import into this directory',
   importDescription: 'Choose an OVPack file and how to handle existing files.',
   chooseFile: 'Choose OVPack file',
+  changeFile: 'Click to choose another file',
+  supportedFileType: 'Accepts .ovpack files',
   conflict: 'On conflict',
   conflictFail: 'Stop on conflict',
   conflictSkip: 'Skip existing files',

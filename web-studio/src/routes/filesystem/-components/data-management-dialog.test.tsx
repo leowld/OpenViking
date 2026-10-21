@@ -36,12 +36,15 @@ it('keeps the selected OVPack file while switching between import and export', a
   await user.click(screen.getByRole('tab', { name: 'importTab' }))
   const importButton = screen.getByRole('button', { name: 'importAction' })
   expect(importButton.disabled).toBe(true)
+  expect(screen.getByText('chooseFile')).toBeTruthy()
 
   await user.upload(
     screen.getByLabelText('chooseFile'),
     new File(['sample'], 'project.ovpack', { type: 'application/zip' }),
   )
   expect(importButton.disabled).toBe(false)
+  expect(screen.getByText('project.ovpack')).toBeTruthy()
+  expect(screen.getByText('changeFile')).toBeTruthy()
 
   await user.click(screen.getByRole('tab', { name: 'exportTab' }))
   await user.click(screen.getByRole('tab', { name: 'importTab' }))

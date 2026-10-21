@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { UploadIcon } from 'lucide-react'
 
 import { Button } from '#/components/ui/button'
 import {
@@ -66,6 +67,7 @@ export function DataManagementDialog({
   const { t } = useTranslation('dataManagement')
   const source = useMemo(createDataManagementClient, [])
   const controller = useRef(new AbortController())
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [commits, setCommits] = useState<SnapshotCommit[] | null>(null)
@@ -217,13 +219,33 @@ export function DataManagementDialog({
               <p className="text-xs text-muted-foreground">
                 {t('importDescription')}
               </p>
-              <input
-                accept=".ovpack"
-                aria-label={t('chooseFile')}
-                disabled={busy || !isDirectory}
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                type="file"
-              />
+              <div>
+                <input
+                  ref={fileInputRef}
+                  id="ovpack-file"
+                  accept=".ovpack"
+                  aria-label={t('chooseFile')}
+                  className="peer sr-only"
+                  disabled={busy || !isDirectory}
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                  type="file"
+                />
+                <label
+                  htmlFor="ovpack-file"
+                  className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-input px-4 py-5 text-center transition-colors hover:border-foreground/50 hover:bg-muted/40 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-disabled:pointer-events-none peer-disabled:opacity-50"
+                >
+                  <UploadIcon
+                    aria-hidden="true"
+                    className="size-5 text-muted-foreground"
+                  />
+                  <span className="max-w-full truncate text-sm font-medium">
+                    {file?.name ?? t('chooseFile')}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {file ? t('changeFile') : t('supportedFileType')}
+                  </span>
+                </label>
+              </div>
               <div className="space-y-1.5 text-sm">
                 <label htmlFor="ovpack-conflict">{t('conflict')}</label>
                 <Select
@@ -265,6 +287,7 @@ export function DataManagementDialog({
                     if (signal.aborted) return
                     onChanged()
                     setFile(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
                     toast.success(t('imported'))
                   })
                 }

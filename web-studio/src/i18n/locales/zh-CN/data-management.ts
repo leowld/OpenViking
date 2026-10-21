@@ -39,6 +39,8 @@ const dataManagement = {
   importTitle: '导入到此目录',
   importDescription: '选择 OVPack 文件，并设置遇到已有文件时的处理方式。',
   chooseFile: '选择 OVPack 文件',
+  changeFile: '点击更换文件',
+  supportedFileType: '支持 .ovpack 文件',
   conflict: '遇到冲突',
   conflictFail: '停止导入',
   conflictSkip: '跳过已有文件',
