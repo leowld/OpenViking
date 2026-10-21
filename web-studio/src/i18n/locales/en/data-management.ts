@@ -48,6 +48,7 @@ const dataManagement = {
   conflictSkip: 'Skip existing files',
   conflictOverwrite: 'Overwrite existing files',
   importAction: 'Import OVPack',
+  importing: 'Importing OVPack...',
   imported: 'OVPack imported',
 } as const
 

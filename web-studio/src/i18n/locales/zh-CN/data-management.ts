@@ -46,6 +46,7 @@ const dataManagement = {
   conflictSkip: '跳过已有文件',
   conflictOverwrite: '覆盖已有文件',
   importAction: '导入 OVPack',
+  importing: '正在导入 OVPack…',
   imported: 'OVPack 已导入',
 } as const
 

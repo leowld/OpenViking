@@ -278,16 +278,28 @@ export function DataManagementDialog({
               </div>
               <Button
                 disabled={busy || !isDirectory || !file}
-                onClick={() =>
-                  void run(async () => {
-                    if (!file) return
-                    await importOvpack(source, uri, file, conflict, signal)
-                    if (signal.aborted) return
-                    onClose()
-                    onChanged()
-                    toast.success(t('imported'))
-                  })
-                }
+                onClick={() => {
+                  if (!file) return
+                  const importFile = file
+                  const importConflict = conflict
+                  const importUri = uri
+                  const importToast = toast.loading(t('importing'))
+                  onClose()
+                  void importOvpack(
+                    source,
+                    importUri,
+                    importFile,
+                    importConflict,
+                    new AbortController().signal,
+                  )
+                    .then(() => {
+                      onChanged()
+                      toast.success(t('imported'), { id: importToast })
+                    })
+                    .catch((cause) => {
+                      toast.error(errorMessage(cause), { id: importToast })
+                    })
+                }}
               >
                 {t('importAction')}
               </Button>
