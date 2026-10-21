@@ -463,8 +463,7 @@ function FilesystemWorkbench() {
     setDataManagementMode(null)
   }, [selectedUri])
   const canManageSelectedUri = selectedUri !== ROOT_URI
-  const canTransferSelectedUri =
-    canUseLocalTools && transferUri.startsWith('viking://resources/')
+  const canTransferSelectedUri = transferUri.startsWith('viking://resources/')
   const displayUri =
     selectedUri === ROOT_URI ? selectedUri : selectedUri.replace(/\/$/, '')
   const entries = visibleContextEntries(listQuery.data?.entries ?? [])

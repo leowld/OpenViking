@@ -157,6 +157,23 @@ describe('filesystem context tree refresh', () => {
     expect(mocks.dataManagement.mock.lastCall?.[0].isDirectory).toBe(true)
   })
 
+  it('offers OVPack on hosted resource directories too', async () => {
+    mocks.provider = 'volcengine'
+    mocks.search = {
+      file: 'viking://resources/preferences/response-tone.md',
+      uri: 'viking://resources/preferences/',
+    }
+    render(<FilesystemRoute />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'dataManagement:transferTitle' }),
+    )
+    expect(screen.getByTestId('data-management-uri').textContent).toBe(
+      'viking://resources/preferences/',
+    )
+    expect(mocks.dataManagement.mock.lastCall?.[0].isDirectory).toBe(true)
+  })
+
   it('offers snapshot history for hosted reads without incompatible local tools', async () => {
     mocks.provider = 'volcengine'
     render(<FilesystemRoute />)
