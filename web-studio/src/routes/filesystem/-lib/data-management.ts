@@ -8,6 +8,9 @@ import {
 } from '#/lib/ov-client'
 import type { OvClientAdapter } from '#/lib/ov-client/types'
 import i18n from '#/i18n/core'
+import { getContentRead } from '#/gen/ov-client/sdk.gen'
+import { normalizeReadContent } from '#/routes/resources/-lib/normalize'
+import { createPatch } from 'diff'
 
 export interface SnapshotCommit {
   oid: string
@@ -90,6 +93,37 @@ export async function diffSnapshot(
     }),
   )
   return result.diff_text
+}
+
+export async function diffSnapshotWithCurrent(
+  source: OvClientAdapter,
+  uri: string,
+  from: string,
+  signal: AbortSignal,
+): Promise<string> {
+  const [snapshot, current] = await Promise.all([
+    from
+      ? source.client.get({
+          url: '/api/v1/snapshot/show',
+          query: { target_ref: from, path: uri, raw: true },
+          responseType: 'blob',
+          signal,
+        })
+      : Promise.resolve(null),
+    getOvResult<unknown>(
+      getContentRead({
+        client: source.client,
+        query: { uri, offset: 0, limit: -1, raw: true } as Parameters<
+          typeof getContentRead
+        >[0]['query'] & { raw: boolean },
+        signal,
+      }),
+    ),
+  ])
+  if (snapshot && !(snapshot.data instanceof Blob))
+    throw new Error(i18n.t('dataManagement:invalidSnapshotContent'))
+  const savedContent = snapshot?.data instanceof Blob ? await snapshot.data.text() : ''
+  return createPatch(uri, savedContent, normalizeReadContent(current))
 }
 
 export async function previewRestore(

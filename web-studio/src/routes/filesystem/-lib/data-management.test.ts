@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   diffSnapshot,
+  diffSnapshotWithCurrent,
   exportOvpack,
   importOvpack,
   listSnapshots,
@@ -69,6 +70,30 @@ describe('data management API', () => {
     expect(mocks.get).toHaveBeenLastCalledWith({
       url: '/api/v1/snapshot/diff',
       query: { path: uri, to: 'target-oid', from: 'base-oid' },
+      signal,
+    })
+  })
+
+  it('compares a saved snapshot with the live file content', async () => {
+    mocks.get
+      .mockResolvedValueOnce({ data: new Blob(['old\n']) })
+      .mockResolvedValueOnce({ data: { result: { content: 'new\n' } } })
+    const diff = await diffSnapshotWithCurrent(
+      source,
+      'viking://resources/docs/a.md',
+      'saved-oid',
+      signal,
+    )
+    expect(diff).toContain('-old')
+    expect(diff).toContain('+new')
+    expect(mocks.get).toHaveBeenNthCalledWith(1, {
+      url: '/api/v1/snapshot/show',
+      query: {
+        target_ref: 'saved-oid',
+        path: 'viking://resources/docs/a.md',
+        raw: true,
+      },
+      responseType: 'blob',
       signal,
     })
   })

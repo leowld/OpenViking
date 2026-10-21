@@ -8,11 +8,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
 import { formatDateTime } from '#/i18n/format'
 
 import {
   createDataManagementClient,
   diffSnapshot,
+  diffSnapshotWithCurrent,
   listSnapshots,
 } from '../-lib/data-management'
 import type { SnapshotCommit } from '../-lib/data-management'
@@ -22,6 +30,8 @@ interface Props {
   onClose: () => void
   uri: string
 }
+
+const EMPTY_VERSION = '__empty_version__'
 
 function versionLabel(commit: SnapshotCommit): string {
   const date = commit.author?.time_seconds
@@ -40,6 +50,14 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
   const [diff, setDiff] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const versionOptions = useMemo(
+    () =>
+      commits?.map((commit) => ({
+        value: commit.oid,
+        label: versionLabel(commit),
+      })) ?? [],
+    [commits],
+  )
 
   useEffect(() => {
     const signal = controller.current.signal
@@ -47,8 +65,8 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
       .then((items) => {
         if (signal.aborted) return
         setCommits(items)
-        setTarget(items[0]?.oid ?? '')
-        setBase(items[1]?.oid ?? '')
+        setTarget('current')
+        setBase(items[0]?.oid ?? '')
       })
       .catch((cause: unknown) => {
         if (!signal.aborted)
@@ -67,7 +85,11 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
 
     const request = new AbortController()
     setBusy(true)
-    void diffSnapshot(source, uri, target, base || undefined, request.signal)
+    void (
+      target === 'current'
+        ? diffSnapshotWithCurrent(source, uri, base, request.signal)
+        : diffSnapshot(source, uri, target, base || undefined, request.signal)
+    )
       .then((result) => {
         if (!request.signal.aborted) setDiff(result)
       })
@@ -84,8 +106,8 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90dvh] min-w-0 overflow-x-hidden overflow-y-auto sm:max-w-5xl">
-        <DialogHeader>
+      <DialogContent className="flex h-[min(90dvh,760px)] min-w-0 flex-col overflow-hidden sm:max-w-5xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{t('diffComparison')}</DialogTitle>
           <DialogDescription className="min-w-0 break-all">
             {uri}
@@ -97,55 +119,90 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
         ) : commits?.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('noSnapshots')}</p>
         ) : commits ? (
-          <div className="min-w-0 space-y-5">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="min-w-0 space-y-1.5 text-sm font-medium">
-                <span>{t('previousVersion')}</span>
-                <select
-                  className="w-full min-w-0 rounded-md border bg-background px-3 py-2 font-normal"
-                  onChange={(event) => {
-                    setBase(event.target.value)
-                    setDiff(null)
-                  }}
-                  value={base}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+            <div className="grid shrink-0 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 space-y-1.5 text-sm font-medium">
+                <label htmlFor="snapshot-base-version">
+                  {t('previousVersion')}
+                </label>
+                <Select
+                  value={base || EMPTY_VERSION}
+                  items={[
+                    { value: EMPTY_VERSION, label: t('emptyVersion') },
+                    ...versionOptions,
+                  ]}
+                  onValueChange={(value) =>
+                    setBase(value === EMPTY_VERSION ? '' : value)
+                  }
                 >
-                  <option value="">{t('emptyVersion')}</option>
-                  {commits.map((commit) => (
-                    <option key={commit.oid} value={commit.oid}>
-                      {versionLabel(commit)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="min-w-0 space-y-1.5 text-sm font-medium">
-                <span>{t('selectedVersion')}</span>
-                <select
-                  className="w-full min-w-0 rounded-md border bg-background px-3 py-2 font-normal"
-                  onChange={(event) => {
-                    setTarget(event.target.value)
-                    setDiff(null)
-                  }}
+                  <SelectTrigger
+                    id="snapshot-base-version"
+                    className="w-full min-w-0 bg-background"
+                  >
+                    <SelectValue className="min-w-0 truncate" />
+                  </SelectTrigger>
+                  <SelectContent
+                    align="start"
+                    className="w-[var(--anchor-width)] max-w-[calc(100vw-3rem)]"
+                  >
+                    <SelectItem value={EMPTY_VERSION}>
+                      {t('emptyVersion')}
+                    </SelectItem>
+                    {commits.map((commit) => (
+                      <SelectItem key={commit.oid} value={commit.oid}>
+                        {versionLabel(commit)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-0 space-y-1.5 text-sm font-medium">
+                <label htmlFor="snapshot-target-version">
+                  {t('selectedVersion')}
+                </label>
+                <Select
                   value={target}
+                  items={[
+                    { value: 'current', label: t('currentContent') },
+                    ...versionOptions,
+                  ]}
+                  onValueChange={setTarget}
                 >
-                  {commits.map((commit) => (
-                    <option key={commit.oid} value={commit.oid}>
-                      {versionLabel(commit)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <SelectTrigger
+                    id="snapshot-target-version"
+                    className="w-full min-w-0 bg-background"
+                  >
+                    <SelectValue className="min-w-0 truncate" />
+                  </SelectTrigger>
+                  <SelectContent
+                    align="start"
+                    className="w-[var(--anchor-width)] max-w-[calc(100vw-3rem)]"
+                  >
+                    <SelectItem value="current">
+                      {t('currentContent')}
+                    </SelectItem>
+                    {commits.map((commit) => (
+                      <SelectItem key={commit.oid} value={commit.oid}>
+                        {versionLabel(commit)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            {busy && (
-              <p role="status" className="text-sm text-muted-foreground">
-                {t('comparingVersions')}
-              </p>
-            )}
-            {base === target && (
-              <p className="text-sm text-muted-foreground">
-                {t('selectDifferentVersions')}
-              </p>
-            )}
-            {diff !== null && <SnapshotDiffViewer diff={diff} />}
+            <div
+              className="h-5 shrink-0 text-sm text-muted-foreground"
+              aria-live="polite"
+            >
+              {busy
+                ? t('comparingVersions')
+                : base === target
+                  ? t('selectDifferentVersions')
+                  : null}
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {diff !== null && <SnapshotDiffViewer diff={diff} />}
+            </div>
           </div>
         ) : null}
         {error && (

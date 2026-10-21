@@ -1,6 +1,7 @@
 const dataManagement = {
   historyTitle: 'Version history',
-  transferTitle: 'Import and export',
+  transferTitle: 'OVPack import and export',
+  transferShortLabel: 'OVPack',
   message: 'Describe this snapshot',
   saveSnapshot: 'Save snapshot',
   snapshotSaved: 'Snapshot saved',
@@ -13,6 +14,8 @@ const dataManagement = {
   diffComparison: 'Version comparison',
   previousVersion: 'Base version',
   selectedVersion: 'Target version',
+  currentContent: 'Current content (including unsnapshotted edits)',
+  invalidSnapshotContent: 'Could not read snapshot content.',
   emptyVersion: 'Empty file (compare with first snapshot)',
   comparingVersions: 'Comparing versions...',
   selectDifferentVersions: 'Choose two different versions.',
@@ -22,8 +25,9 @@ const dataManagement = {
   restoreNotice:
     'The preview compares saved snapshots and does not show unsaved edits. Restore may overwrite those edits. Permissions and vector indexes are not restored; indexing continues in the background.',
   confirmRestore: 'Restore this directory',
+  confirmRestoreFile: 'Restore this file',
   noChanges: 'No changes',
-  restored: 'Directory restored',
+  restored: 'Restored',
   headChanged: 'The latest snapshot changed. Preview the restore again.',
   invalidExport: 'The server returned an invalid OVPack export.',
   missingUploadId: 'The server did not return an upload ID.',

@@ -185,6 +185,27 @@ describe('FilePreview Markdown rendering', () => {
     previewState.override = null
   })
 
+  it('shows available file metadata at the bottom and omits missing values', () => {
+    const { container, rerender } = renderPreview(file, vi.fn())
+    expect(container.querySelector('footer')?.textContent).toBe(
+      '24 B · 2026-08-04 12:00',
+    )
+    expect(
+      container.querySelector('footer')?.previousElementSibling,
+    ).toBeTruthy()
+
+    rerender(
+      <FilePreview
+        file={{ ...file, size: '', sizeBytes: null, modTime: '' }}
+        onClose={vi.fn()}
+        onNavigate={vi.fn()}
+        showCloseButton={false}
+      />,
+    )
+    expect(container.querySelector('footer')).toBeNull()
+    expect(container.textContent).not.toContain('- · -')
+  })
+
   it('opens internal Markdown links in the resource preview', () => {
     const onNavigate = vi.fn()
     renderPreview(file, onNavigate)

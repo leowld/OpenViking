@@ -456,14 +456,15 @@ function FilesystemWorkbench() {
 
   const selectedUri = selectedFile?.uri ?? currentUri
   const selectedIsDirectory = selectedFile?.isDir ?? true
+  const transferUri = selectedIsDirectory
+    ? selectedUri
+    : normalizeDirUri(parentUri(selectedUri))
   useEffect(() => {
     setDataManagementMode(null)
   }, [selectedUri])
   const canManageSelectedUri = canUseLocalTools && selectedUri !== ROOT_URI
   const canTransferSelectedUri =
-    canManageSelectedUri &&
-    selectedIsDirectory &&
-    selectedUri.startsWith('viking://resources/')
+    canUseLocalTools && transferUri.startsWith('viking://resources/')
   const displayUri =
     selectedUri === ROOT_URI ? selectedUri : selectedUri.replace(/\/$/, '')
   const entries = visibleContextEntries(listQuery.data?.entries ?? [])
@@ -651,13 +652,16 @@ function FilesystemWorkbench() {
             {canTransferSelectedUri ? (
               <Button
                 type="button"
-                size="icon-sm"
+                size="sm"
                 variant="ghost"
                 title={t('dataManagement:transferTitle')}
                 aria-label={t('dataManagement:transferTitle')}
                 onClick={() => setDataManagementMode('transfer')}
               >
                 <PackageIcon className="size-4" />
+                <span className="hidden sm:inline">
+                  {t('dataManagement:transferShortLabel')}
+                </span>
               </Button>
             ) : null}
             {canUseLocalTools ? (
@@ -794,13 +798,13 @@ function FilesystemWorkbench() {
         />
       ) : dataManagementMode ? (
         <DataManagementDialog
-          key={`${identityScopeKey}:${selectedUri}:${dataManagementMode}`}
+          key={`${identityScopeKey}:${dataManagementMode === 'transfer' ? transferUri : selectedUri}:${dataManagementMode}`}
           mode={dataManagementMode}
           onClose={() => setDataManagementMode(null)}
           onCompare={() => setDataManagementMode('compare')}
           onChanged={() => void invalidateAll()}
-          uri={selectedUri}
-          isDirectory={selectedIsDirectory}
+          uri={dataManagementMode === 'transfer' ? transferUri : selectedUri}
+          isDirectory={dataManagementMode === 'transfer' || selectedIsDirectory}
         />
       ) : null}
       <FindPalette

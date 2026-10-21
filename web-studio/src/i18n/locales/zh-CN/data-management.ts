@@ -1,6 +1,7 @@
 const dataManagement = {
   historyTitle: '历史版本',
-  transferTitle: '导入与导出',
+  transferTitle: 'OVPack 导入与导出',
+  transferShortLabel: 'OVPack',
   message: '描述这次快照',
   saveSnapshot: '保存快照',
   snapshotSaved: '快照已保存',
@@ -12,6 +13,8 @@ const dataManagement = {
   diffComparison: '版本对比',
   previousVersion: '基准版本',
   selectedVersion: '目标版本',
+  currentContent: '当前内容（含未保存到快照的修改）',
+  invalidSnapshotContent: '快照内容读取失败。',
   emptyVersion: '空文件（与首次快照对比）',
   comparingVersions: '正在比较版本…',
   selectDifferentVersions: '请选择两个不同的版本。',
@@ -21,8 +24,9 @@ const dataManagement = {
   restoreNotice:
     '预览比较的是已保存的快照，不显示未保存的改动；恢复可能覆盖这些改动。权限和向量索引不会恢复，索引将在后台重建。',
   confirmRestore: '恢复此目录',
+  confirmRestoreFile: '恢复此文件',
   noChanges: '没有变化',
-  restored: '目录已恢复',
+  restored: '已恢复',
   headChanged: '最新快照已变化，请重新预览恢复内容。',
   invalidExport: '服务端返回了无效的 OVPack 导出文件。',
   missingUploadId: '服务端没有返回上传 ID。',

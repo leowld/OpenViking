@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   fetchFsStat: vi.fn(),
   invalidateList: vi.fn(),
   navigate: vi.fn(),
+  dataManagement: vi.fn(),
   refreshLabel: 'refresh',
   search: {} as { file?: string; uri?: string },
 }))
@@ -103,6 +104,12 @@ vi.mock('./-components/agent-panel', () => ({ AgentPanel: mocks.agent }))
 vi.mock('./-components/terminal-panel', () => ({
   TerminalPanel: mocks.terminal,
 }))
+vi.mock('./-components/data-management-dialog', () => ({
+  DataManagementDialog: (props: { uri: string; isDirectory: boolean }) => {
+    mocks.dataManagement(props)
+    return <div data-testid="data-management-uri">{props.uri}</div>
+  },
+}))
 vi.mock('#/routes/resources/-components/find-palette', () => ({
   FindPalette: () => null,
 }))
@@ -131,6 +138,23 @@ describe('filesystem context tree refresh', () => {
     mocks.fetchFsStat.mockReset()
     mocks.invalidateList.mockReset().mockResolvedValue(undefined)
     mocks.navigate.mockReset()
+    mocks.dataManagement.mockReset()
+  })
+
+  it('offers OVPack for the parent resource directory while a file is selected', async () => {
+    mocks.search = {
+      file: 'viking://resources/preferences/response-tone.md',
+      uri: 'viking://resources/preferences/',
+    }
+    render(<FilesystemRoute />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'dataManagement:transferTitle' }),
+    )
+    expect(screen.getByTestId('data-management-uri').textContent).toBe(
+      'viking://resources/preferences/',
+    )
+    expect(mocks.dataManagement.mock.lastCall?.[0].isDirectory).toBe(true)
   })
 
   it('reuses the same workbench for hosted reads without scope tabs or incompatible local tools', () => {

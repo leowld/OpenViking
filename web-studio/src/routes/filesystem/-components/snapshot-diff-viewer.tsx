@@ -19,8 +19,11 @@ export function SnapshotDiffViewer({ diff }: Props) {
   ).length
 
   return (
-    <section aria-label={t('diffComparison')} className="min-w-0 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+    <section
+      aria-label={t('diffComparison')}
+      className="flex h-full min-h-0 min-w-0 flex-col gap-3"
+    >
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-sm">
         <h3 className="font-medium">{t('diffComparison')}</h3>
         <div className="flex gap-3 font-mono text-xs tabular-nums">
           <span className="text-emerald-700 dark:text-emerald-400">
@@ -32,7 +35,7 @@ export function SnapshotDiffViewer({ diff }: Props) {
       {hunks.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('noChanges')}</p>
       ) : (
-        <div className="max-h-[45dvh] min-w-0 overflow-y-auto rounded-md border">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto rounded-md border">
           <div className="sticky top-0 z-10 hidden grid-cols-2 border-b bg-muted text-xs font-medium md:grid">
             <div className="border-r px-3 py-2">{t('previousVersion')}</div>
             <div className="px-3 py-2">{t('selectedVersion')}</div>

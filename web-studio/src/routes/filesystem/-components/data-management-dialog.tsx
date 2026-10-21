@@ -10,6 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
 import { formatDateTime } from '#/i18n/format'
 
 import {
@@ -18,10 +25,8 @@ import {
   exportOvpack,
   importOvpack,
   listSnapshots,
-  previewRestore,
-  restoreSnapshot,
 } from '../-lib/data-management'
-import type { RestorePlan, SnapshotCommit } from '../-lib/data-management'
+import type { SnapshotCommit } from '../-lib/data-management'
 
 interface Props {
   mode: 'history' | 'transfer'
@@ -64,8 +69,6 @@ export function DataManagementDialog({
   const [error, setError] = useState('')
   const [commits, setCommits] = useState<SnapshotCommit[] | null>(null)
   const [message, setMessage] = useState('')
-  const [selected, setSelected] = useState<SnapshotCommit | null>(null)
-  const [plan, setPlan] = useState<RestorePlan | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [conflict, setConflict] = useState<'fail' | 'skip' | 'overwrite'>(
     'fail',
@@ -100,10 +103,6 @@ export function DataManagementDialog({
   }
 
   const signal = controller.current.signal
-  const hasChanges = Boolean(
-    plan && (plan.diff.to_write.length || plan.diff.to_delete.length),
-  )
-
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90dvh] min-w-0 overflow-x-hidden overflow-y-auto sm:max-w-2xl">
@@ -169,29 +168,6 @@ export function DataManagementDialog({
                           : ''}
                       </p>
                     </div>
-                    {isDirectory && (
-                      <Button
-                        disabled={busy}
-                        onClick={() =>
-                          void run(async () => {
-                            setSelected(commit)
-                            setPlan(null)
-                            setPlan(
-                              await previewRestore(
-                                source,
-                                uri,
-                                commit.oid,
-                                signal,
-                              ),
-                            )
-                          })
-                        }
-                        size="sm"
-                        variant="outline"
-                      >
-                        {t('previewRestore')}
-                      </Button>
-                    )}
                   </li>
                 ))}
               </ul>
@@ -200,48 +176,6 @@ export function DataManagementDialog({
               <div className="flex justify-end">
                 <Button type="button" variant="outline" onClick={onCompare}>
                   {t('diffComparison')}
-                </Button>
-              </div>
-            )}
-            {selected && plan && (
-              <div className="space-y-3 rounded-md border p-3">
-                <p className="text-sm font-medium">{t('restorePreview')}</p>
-                <p className="text-xs text-muted-foreground">
-                  {t('restoreCounts', {
-                    written: plan.diff.to_write.length,
-                    deleted: plan.diff.to_delete.length,
-                  })}
-                </p>
-                <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs">
-                  {[
-                    ...plan.diff.to_write.map((item) => `+ ${item.path}`),
-                    ...plan.diff.to_delete.map((path) => `- ${path}`),
-                  ].join('\n') || t('noChanges')}
-                </pre>
-                <p className="text-xs text-muted-foreground">
-                  {t('restoreNotice')}
-                </p>
-                <Button
-                  disabled={busy || !hasChanges}
-                  onClick={() =>
-                    void run(async () => {
-                      const result = await restoreSnapshot(
-                        source,
-                        uri,
-                        plan,
-                        signal,
-                      )
-                      setPlan(null)
-                      setCommits(await listSnapshots(source, uri, signal))
-                      onChanged()
-                      toast.success(
-                        t(result.result === 'noop' ? 'noChanges' : 'restored'),
-                      )
-                    })
-                  }
-                  variant="destructive"
-                >
-                  {t('confirmRestore')}
                 </Button>
               </div>
             )}
@@ -279,21 +213,38 @@ export function DataManagementDialog({
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 type="file"
               />
-              <label className="flex items-center gap-2 text-sm">
-                {t('conflict')}
-                <select
-                  className="rounded-md border bg-background px-2 py-1"
+              <div className="space-y-1.5 text-sm">
+                <label htmlFor="ovpack-conflict">{t('conflict')}</label>
+                <Select
                   disabled={busy}
-                  onChange={(event) =>
-                    setConflict(event.target.value as typeof conflict)
+                  items={[
+                    { value: 'fail', label: t('conflictFail') },
+                    { value: 'skip', label: t('conflictSkip') },
+                    { value: 'overwrite', label: t('conflictOverwrite') },
+                  ]}
+                  onValueChange={(value) =>
+                    setConflict(value as typeof conflict)
                   }
                   value={conflict}
                 >
-                  <option value="fail">{t('conflictFail')}</option>
-                  <option value="skip">{t('conflictSkip')}</option>
-                  <option value="overwrite">{t('conflictOverwrite')}</option>
-                </select>
-              </label>
+                  <SelectTrigger
+                    id="ovpack-conflict"
+                    className="w-full bg-background"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent
+                    align="start"
+                    className="w-[var(--anchor-width)]"
+                  >
+                    <SelectItem value="fail">{t('conflictFail')}</SelectItem>
+                    <SelectItem value="skip">{t('conflictSkip')}</SelectItem>
+                    <SelectItem value="overwrite">
+                      {t('conflictOverwrite')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Button
                 disabled={busy || !isDirectory || !file}
                 onClick={() =>

@@ -279,6 +279,35 @@ class TestCommitShowLog:
 
 @pytest.mark.asyncio
 class TestRestore:
+    async def test_restore_single_file_preserves_sibling(self, vfs):
+        ctx = _make_ctx(account="acct_file_restore")
+        file_uri = "viking://resources/proj/a.md"
+        sibling_uri = "viking://resources/proj/b.md"
+        await vfs.write_file(file_uri, b"old", ctx=ctx)
+        await vfs.write_file(sibling_uri, b"sibling old", ctx=ctx)
+        saved = await vfs.commit(
+            message="initial", paths=[file_uri, sibling_uri], ctx=ctx
+        )
+        await vfs.write_file(file_uri, b"new", ctx=ctx)
+        await vfs.write_file(sibling_uri, b"sibling new", ctx=ctx)
+        await vfs.commit(message="updated", paths=[file_uri, sibling_uri], ctx=ctx)
+
+        plan = await vfs.restore(
+            project_dir=file_uri,
+            source_commit=saved["commit_oid"],
+            dry_run=True,
+            ctx=ctx,
+        )
+        assert plan["result"] == "dry_run"
+        assert [item["path"] for item in plan["diff"]["to_write"]] == [""]
+
+        result = await vfs.restore(
+            project_dir=file_uri, source_commit=saved["commit_oid"], ctx=ctx
+        )
+        assert result["result"] == "applied"
+        assert await vfs.read(file_uri, ctx=ctx) == b"old"
+        assert await vfs.read(sibling_uri, ctx=ctx) == b"sibling new"
+
     async def test_restore_reverts_file_and_advances_head(self, vfs):
         ctx = _make_ctx(account="acct_r")
         await vfs.write_file("viking://resources/proj/a.md", b"v1", ctx=ctx)

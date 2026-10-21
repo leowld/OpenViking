@@ -964,7 +964,7 @@ impl GitService {
         Ok(out)
     }
 
-    /// Restore a subtree at `project_dir` to the state it had in `source_commit`,
+    /// Restore a file or subtree at `project_dir` to its state in `source_commit`,
     /// producing a new commit whose parent is the **current HEAD** (not
     /// `source_commit`). HEAD always moves forward.
     ///
@@ -975,7 +975,7 @@ impl GitService {
     /// - `GitError::InvalidProjectDir` — `project_dir` is empty / malformed.
     /// - `GitError::RefStore(NotFound)` — branch HEAD or source_commit ref missing.
     /// - `GitError::SubtreeNotFoundInCommit` — `project_dir` does not resolve
-    ///   to a subtree in `source_commit`'s tree.
+    ///   to a file or subtree in `source_commit`'s tree.
     /// - `GitError::ConcurrentCommit` — branch ref changed between our read
     ///   and the CAS swap.
     pub async fn restore(&self, req: RestoreRequest) -> Result<RestoreResponse, GitError> {
@@ -1024,12 +1024,12 @@ impl GitService {
             load_commit_meta(self.object_store.as_ref(), account, &source_oid).await?;
         let head_meta = load_commit_meta(self.object_store.as_ref(), account, &head_oid).await?;
 
-        // 2. Extract subtree from each (or use full tree if project_dir is None).
+        // 2. Extract the file or subtree (or full tree if project_dir is None).
         //    Source missing → error (if project_dir is Some).
         //    Head missing → treat as empty (every file is a fresh write).
-        let (source_tree_to_flatten, head_tree_to_flatten) = match project_dir {
+        let (source_tree_to_flatten, head_tree_to_flatten, file_scope) = match project_dir {
             Some(project_dir) => {
-                let source_subtree = match crate::git::tree_builder::lookup(
+                let (source_subtree, source_is_tree) = match crate::git::tree_builder::lookup(
                     self.object_store.as_ref(),
                     account,
                     source_meta.tree,
@@ -1037,7 +1037,7 @@ impl GitService {
                 )
                 .await?
                 {
-                    Some((oid, mode)) if mode.is_tree() => oid,
+                    Some((oid, mode)) => (oid, mode.is_tree()),
                     _ => {
                         return Err(GitError::SubtreeNotFoundInCommit {
                             project_dir: project_dir.clone(),
@@ -1053,23 +1053,25 @@ impl GitService {
                 )
                 .await?
                 {
-                    Some((oid, mode)) if mode.is_tree() => Some(oid),
-                    _ => None,
+                    Some((oid, mode)) if mode.is_tree() == source_is_tree => Some(oid),
+                    None => None,
+                    _ => return Err(GitError::Other(format!("restore target type changed: {project_dir}"))),
                 };
-                (source_subtree, head_subtree)
+                (source_subtree, head_subtree, !source_is_tree)
             }
-            None => (source_meta.tree, Some(head_meta.tree)),
+            None => (source_meta.tree, Some(head_meta.tree), false),
         };
 
-        // 3. Flatten and diff (paths in the result are subtree-relative, or account-relative if full tree).
-        let source_entries = crate::git::tree_builder::flatten(
-            self.object_store.as_ref(),
-            account,
-            source_tree_to_flatten,
-            &None,
-        )
-        .await?;
+        // 3. Flatten and diff. A file has an empty relative path.
+        let source_entries = if file_scope {
+            vec![(String::new(), source_tree_to_flatten)]
+        } else {
+            crate::git::tree_builder::flatten(
+                self.object_store.as_ref(), account, source_tree_to_flatten, &None,
+            ).await?
+        };
         let head_entries = match head_tree_to_flatten {
+            Some(oid) if file_scope => vec![(String::new(), oid)],
             Some(oid) => {
                 crate::git::tree_builder::flatten(self.object_store.as_ref(), account, oid, &None)
                     .await?
@@ -1118,14 +1120,11 @@ impl GitService {
                     head_meta.tree,
                 )
                 .await?;
-                editor
-                    .upsert_subtree(
-                        self.object_store.as_ref(),
-                        account,
-                        project_dir,
-                        source_tree_to_flatten,
-                    )
-                    .await?;
+                if file_scope {
+                    editor.upsert(self.object_store.as_ref(), account, project_dir, source_tree_to_flatten).await?;
+                } else {
+                    editor.upsert_subtree(self.object_store.as_ref(), account, project_dir, source_tree_to_flatten).await?;
+                }
                 editor.write(self.object_store.as_ref(), account).await?
             }
             None => source_meta.tree,
@@ -1183,6 +1182,7 @@ impl GitService {
         let account_owned = account.clone();
         let abs_prefix_for_writes = abs_prefix.clone();
         let project_dir_for_writes = project_dir.clone();
+        let file_scope_for_writes = file_scope;
 
         let write_results: Vec<(String, Result<(), GitError>)> =
             stream::iter(diff.to_write.clone().into_iter())
@@ -1192,8 +1192,10 @@ impl GitService {
                     let account = account_owned.clone();
                     let abs_prefix = abs_prefix_for_writes.clone();
                     let project_dir = project_dir_for_writes.clone();
+                    let file_scope = file_scope_for_writes;
                     async move {
                         let account_rel = match &project_dir {
+                            Some(pd) if file_scope => pd.clone(),
                             Some(pd) => format!("{}/{}", pd, rel),
                             None => rel.clone(),
                         };
@@ -1201,7 +1203,7 @@ impl GitService {
                             let bytes =
                                 read_blob_payload(object_store.as_ref(), &account, &blob_oid)
                                     .await?;
-                            let abs = format!("{}/{}", abs_prefix, rel);
+                            let abs = if file_scope { abs_prefix } else { format!("{}/{}", abs_prefix, rel) };
                             // The target's parent directory may have been removed out of
                             // band (e.g. an `rm -r` that a later commit recorded as a
                             // deletion), so the restore must recreate the directory
