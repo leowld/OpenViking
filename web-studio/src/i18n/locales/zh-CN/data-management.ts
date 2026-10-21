@@ -16,6 +16,7 @@ const dataManagement = {
   selectedVersion: '目标版本',
   currentContent: '当前内容（含未保存到快照的修改）',
   invalidSnapshotContent: '快照内容读取失败。',
+  versionMissingFile: '此版本不包含该文件',
   emptyVersion: '空文件（与首次快照对比）',
   comparingVersions: '正在比较版本…',
   selectDifferentVersions: '请选择两个不同的版本。',

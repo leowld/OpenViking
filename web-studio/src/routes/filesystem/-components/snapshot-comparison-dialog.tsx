@@ -23,7 +23,10 @@ import {
   diffSnapshotWithCurrent,
   listSnapshots,
 } from '../-lib/data-management'
-import type { SnapshotCommit } from '../-lib/data-management'
+import type {
+  SnapshotCommit,
+  SnapshotComparison,
+} from '../-lib/data-management'
 import { SnapshotDiffViewer } from './snapshot-diff-viewer'
 
 interface Props {
@@ -47,7 +50,7 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
   const [commits, setCommits] = useState<SnapshotCommit[] | null>(null)
   const [base, setBase] = useState('')
   const [target, setTarget] = useState('')
-  const [diff, setDiff] = useState<string | null>(null)
+  const [comparison, setComparison] = useState<SnapshotComparison | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const versionOptions = useMemo(
@@ -76,7 +79,7 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
   }, [source, uri])
 
   useEffect(() => {
-    setDiff(null)
+    setComparison(null)
     setError('')
     if (!commits || !target || base === target) {
       setBusy(false)
@@ -91,7 +94,7 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
         : diffSnapshot(source, uri, target, base || undefined, request.signal)
     )
       .then((result) => {
-        if (!request.signal.aborted) setDiff(result)
+        if (!request.signal.aborted) setComparison(result)
       })
       .catch((cause: unknown) => {
         if (!request.signal.aborted)
@@ -201,7 +204,7 @@ export function SnapshotComparisonDialog({ onClose, uri }: Props) {
                   : null}
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
-              {diff !== null && <SnapshotDiffViewer diff={diff} />}
+              {comparison !== null && <SnapshotDiffViewer {...comparison} />}
             </div>
           </div>
         ) : null}

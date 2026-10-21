@@ -18,6 +18,12 @@ export interface SnapshotCommit {
   author?: { name?: string; time_seconds?: number }
 }
 
+export interface SnapshotComparison {
+  diff: string
+  missingBase: boolean
+  missingTarget: boolean
+}
+
 export function createDataManagementClient(): OvClientAdapter {
   return createOvClient({
     ...ovClient.getOptions(),
@@ -67,25 +73,72 @@ export async function diffSnapshot(
   to: string,
   from: string | undefined,
   signal: AbortSignal,
-): Promise<string> {
+): Promise<SnapshotComparison> {
   try {
-    const result = await getOvResult<{ diff_text: string }>(
+    const result = await getOvResult<{
+      diff_text: string
+      change_type?: 'added' | 'deleted' | 'modified' | 'unchanged'
+    }>(
       source.client.get({
         url: '/api/v1/snapshot/diff',
         query: { path: uri, to, ...(from ? { from } : {}) },
         signal,
       }),
     )
-    return result.diff_text
+    return {
+      diff: result.diff_text,
+      missingBase: !from || result.change_type === 'added',
+      missingTarget: result.change_type === 'deleted',
+    }
   } catch (error) {
     // Hosted connections expose snapshot/show but may not route snapshot/diff.
     if (normalizeOvClientError(error).statusCode !== 404) throw error
     const [older, newer] = await Promise.all([
-      from ? readSnapshotFile(source, uri, from, signal) : Promise.resolve(''),
+      from
+        ? readSnapshotFile(source, uri, from, signal)
+        : Promise.resolve({ content: '', missing: true }),
       readSnapshotFile(source, uri, to, signal),
     ])
-    return createPatch(uri, older, newer)
+    return {
+      diff: createPatch(uri, older.content, newer.content),
+      missingBase: older.missing,
+      missingTarget: newer.missing,
+    }
   }
+}
+
+async function isMissingSnapshotBlob(
+  error: unknown,
+  uri: string,
+): Promise<boolean> {
+  const normalized = normalizeOvClientError(error)
+  if (normalized.statusCode !== 404) return false
+  let code = normalized.code
+  let details: unknown = normalized.details
+  if (normalized.responseBody instanceof Blob) {
+    try {
+      const body: unknown = JSON.parse(await normalized.responseBody.text())
+      if (body !== null && typeof body === 'object' && 'error' in body) {
+        const payload = body.error
+        if (payload !== null && typeof payload === 'object') {
+          if ('code' in payload && typeof payload.code === 'string')
+            code = payload.code
+          if ('details' in payload) details = payload.details
+        }
+      }
+    } catch {
+      return false
+    }
+  }
+  return (
+    code === 'NOT_FOUND' &&
+    details !== null &&
+    typeof details === 'object' &&
+    'type' in details &&
+    details.type === 'git_blob' &&
+    'resource' in details &&
+    details.resource === uri
+  )
 }
 
 async function readSnapshotFile(
@@ -93,16 +146,25 @@ async function readSnapshotFile(
   uri: string,
   ref: string,
   signal: AbortSignal,
-): Promise<string> {
-  const response = await source.client.get({
-    url: '/api/v1/snapshot/show',
-    query: { target_ref: ref, path: uri, raw: true },
-    responseType: 'blob',
-    signal,
-  })
-  if (!(response.data instanceof Blob))
-    throw new Error(i18n.t('dataManagement:invalidSnapshotContent'))
-  return response.data.text()
+): Promise<{ content: string; missing: boolean }> {
+  try {
+    const response = await source.client.get({
+      url: '/api/v1/snapshot/show',
+      query: { target_ref: ref, path: uri, raw: true },
+      responseType: 'blob',
+      signal,
+    })
+    if (!(response.data instanceof Blob))
+      throw new Error(i18n.t('dataManagement:invalidSnapshotContent'))
+    return { content: await response.data.text(), missing: false }
+  } catch (error) {
+    if (!(await isMissingSnapshotBlob(error, uri))) throw error
+    // The show endpoint maps a missing ref and a missing blob to the same
+    // git_blob error. Confirm this ref still exists before treating it as empty.
+    const commits = await listSnapshots(source, uri, signal, 500)
+    if (!commits.some((commit) => commit.oid === ref)) throw error
+    return { content: '', missing: true }
+  }
 }
 
 export async function diffSnapshotWithCurrent(
@@ -110,9 +172,11 @@ export async function diffSnapshotWithCurrent(
   uri: string,
   from: string,
   signal: AbortSignal,
-): Promise<string> {
+): Promise<SnapshotComparison> {
   const [savedContent, current] = await Promise.all([
-    from ? readSnapshotFile(source, uri, from, signal) : Promise.resolve(''),
+    from
+      ? readSnapshotFile(source, uri, from, signal)
+      : Promise.resolve({ content: '', missing: true }),
     getOvResult<unknown>(
       getContentRead({
         client: source.client,
@@ -123,7 +187,11 @@ export async function diffSnapshotWithCurrent(
       }),
     ),
   ])
-  return createPatch(uri, savedContent, normalizeReadContent(current))
+  return {
+    diff: createPatch(uri, savedContent.content, normalizeReadContent(current)),
+    missingBase: savedContent.missing,
+    missingTarget: false,
+  }
 }
 
 export async function exportOvpack(

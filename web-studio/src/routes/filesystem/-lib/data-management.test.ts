@@ -64,7 +64,11 @@ describe('data management API', () => {
     mocks.get.mockResolvedValue({ data: { result: { diff_text: 'diff' } } })
     await expect(
       diffSnapshot(source, uri, 'target-oid', 'base-oid', signal),
-    ).resolves.toBe('diff')
+    ).resolves.toEqual({
+      diff: 'diff',
+      missingBase: false,
+      missingTarget: false,
+    })
     expect(mocks.get).toHaveBeenLastCalledWith({
       url: '/api/v1/snapshot/diff',
       query: { path: uri, to: 'target-oid', from: 'base-oid' },
@@ -78,9 +82,19 @@ describe('data management API', () => {
       .mockResolvedValueOnce({ data: new Blob(['old\n']) })
       .mockResolvedValueOnce({ data: new Blob(['new\n']) })
 
-    const diff = await diffSnapshot(source, uri, 'new-oid', 'old-oid', signal)
-    expect(diff).toContain('-old')
-    expect(diff).toContain('+new')
+    const comparison = await diffSnapshot(
+      source,
+      uri,
+      'new-oid',
+      'old-oid',
+      signal,
+    )
+    expect(comparison.diff).toContain('-old')
+    expect(comparison.diff).toContain('+new')
+    expect(comparison).toMatchObject({
+      missingBase: false,
+      missingTarget: false,
+    })
     expect(mocks.get).toHaveBeenNthCalledWith(2, {
       url: '/api/v1/snapshot/show',
       query: { target_ref: 'old-oid', path: uri, raw: true },
@@ -99,14 +113,18 @@ describe('data management API', () => {
     mocks.get
       .mockResolvedValueOnce({ data: new Blob(['old\n']) })
       .mockResolvedValueOnce({ data: { result: { content: 'new\n' } } })
-    const diff = await diffSnapshotWithCurrent(
+    const comparison = await diffSnapshotWithCurrent(
       source,
       'viking://resources/docs/a.md',
       'saved-oid',
       signal,
     )
-    expect(diff).toContain('-old')
-    expect(diff).toContain('+new')
+    expect(comparison.diff).toContain('-old')
+    expect(comparison.diff).toContain('+new')
+    expect(comparison).toMatchObject({
+      missingBase: false,
+      missingTarget: false,
+    })
     expect(mocks.get).toHaveBeenNthCalledWith(1, {
       url: '/api/v1/snapshot/show',
       query: {
@@ -117,6 +135,94 @@ describe('data management API', () => {
       responseType: 'blob',
       signal,
     })
+  })
+
+  it('marks a deleted target from the native diff response', async () => {
+    mocks.get.mockResolvedValue({
+      data: { result: { diff_text: '-removed', change_type: 'deleted' } },
+    })
+    await expect(
+      diffSnapshot(source, uri, 'deleted-oid', 'old-oid', signal),
+    ).resolves.toEqual({
+      diff: '-removed',
+      missingBase: false,
+      missingTarget: true,
+    })
+  })
+
+  it('treats a missing snapshot blob as an empty comparison side', async () => {
+    const missing = {
+      statusCode: 404,
+      code: 'NOT_FOUND',
+      details: { type: 'git_blob', resource: uri },
+    }
+    mocks.get
+      .mockRejectedValueOnce({ statusCode: 404 }) // diff route unavailable
+      .mockRejectedValueOnce(missing) // base version has no file
+      .mockResolvedValueOnce({ data: new Blob(['new\n']) })
+      .mockResolvedValueOnce({
+        data: { result: [{ oid: 'old-oid' }, { oid: 'new-oid' }] },
+      })
+    const result = await diffSnapshot(source, uri, 'new-oid', 'old-oid', signal)
+    expect(result.diff).toContain('+new')
+    expect(result).toMatchObject({ missingBase: true, missingTarget: false })
+  })
+
+  it('reads a missing-file error returned as a binary response', async () => {
+    mocks.get
+      .mockRejectedValueOnce({ statusCode: 404 })
+      .mockRejectedValueOnce({
+        statusCode: 404,
+        code: 'HTTP_ERROR',
+        responseBody: new Blob([
+          JSON.stringify({
+            error: {
+              code: 'NOT_FOUND',
+              details: { type: 'git_blob', resource: uri },
+            },
+          }),
+        ]),
+      })
+      .mockResolvedValueOnce({ data: new Blob(['new\n']) })
+      .mockResolvedValueOnce({ data: { result: [{ oid: 'old-oid' }] } })
+    const result = await diffSnapshot(source, uri, 'new-oid', 'old-oid', signal)
+    expect(result).toMatchObject({ missingBase: true, missingTarget: false })
+  })
+
+  it('does not mistake an invalid ref for a missing file', async () => {
+    const missing = {
+      statusCode: 404,
+      code: 'NOT_FOUND',
+      details: { type: 'git_blob', resource: uri },
+    }
+    mocks.get
+      .mockRejectedValueOnce({ statusCode: 404 })
+      .mockRejectedValueOnce(missing)
+      .mockResolvedValueOnce({ data: new Blob(['new\n']) })
+      .mockResolvedValueOnce({ data: { result: [{ oid: 'new-oid' }] } })
+    await expect(
+      diffSnapshot(source, uri, 'new-oid', 'invalid-oid', signal),
+    ).rejects.toBe(missing)
+  })
+
+  it('compares current content when the saved version lacks the file', async () => {
+    const fileUri = 'viking://resources/docs/a.md'
+    mocks.get
+      .mockRejectedValueOnce({
+        statusCode: 404,
+        code: 'NOT_FOUND',
+        details: { type: 'git_blob', resource: fileUri },
+      })
+      .mockResolvedValueOnce({ data: { result: { content: 'current\n' } } })
+      .mockResolvedValueOnce({ data: { result: [{ oid: 'saved-oid' }] } })
+    const result = await diffSnapshotWithCurrent(
+      source,
+      fileUri,
+      'saved-oid',
+      signal,
+    )
+    expect(result.diff).toContain('+current')
+    expect(result).toMatchObject({ missingBase: true, missingTarget: false })
   })
 
   it('downloads binary OVPack and imports through the same source client', async () => {

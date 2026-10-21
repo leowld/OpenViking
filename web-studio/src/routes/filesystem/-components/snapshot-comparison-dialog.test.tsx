@@ -37,11 +37,21 @@ it('compares on selection and ignores a stale response', async () => {
     { oid: 'new', message: 'New' },
     { oid: 'old', message: 'Old' },
   ])
-  const pending: Array<(value: string) => void> = []
+  const pending: Array<
+    (value: {
+      diff: string
+      missingBase: boolean
+      missingTarget: boolean
+    }) => void
+  > = []
   mocks.diffSnapshotWithCurrent.mockImplementation(
-    () => new Promise<string>((resolve) => pending.push(resolve)),
+    () => new Promise((resolve) => pending.push(resolve)),
   )
-  mocks.diffSnapshot.mockResolvedValue('selected comparison')
+  mocks.diffSnapshot.mockResolvedValue({
+    diff: 'selected comparison',
+    missingBase: false,
+    missingTarget: false,
+  })
 
   render(
     <SnapshotComparisonDialog
@@ -63,13 +73,23 @@ it('compares on selection and ignores a stale response', async () => {
 
   expect(await screen.findByText('selected comparison')).toBeTruthy()
   expect(screen.getByRole('dialog').className).toContain('h-[min(90dvh,760px)]')
-  await act(async () => pending[0]('stale comparison'))
+  await act(async () =>
+    pending[0]({
+      diff: 'stale comparison',
+      missingBase: false,
+      missingTarget: false,
+    }),
+  )
   expect(screen.queryByText('stale comparison')).toBeNull()
 })
 
 it('shows the latest current content diff without another click', async () => {
   mocks.listSnapshots.mockResolvedValue([{ oid: 'latest', message: 'Latest' }])
-  mocks.diffSnapshotWithCurrent.mockResolvedValue('current comparison')
+  mocks.diffSnapshotWithCurrent.mockResolvedValue({
+    diff: 'current comparison',
+    missingBase: false,
+    missingTarget: false,
+  })
   render(
     <SnapshotComparisonDialog
       onClose={vi.fn()}

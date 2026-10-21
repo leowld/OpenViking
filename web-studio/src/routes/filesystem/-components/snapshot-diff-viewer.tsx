@@ -5,9 +5,15 @@ import { parseSnapshotDiff } from '../-lib/snapshot-diff'
 
 interface Props {
   diff: string
+  missingBase?: boolean
+  missingTarget?: boolean
 }
 
-export function SnapshotDiffViewer({ diff }: Props) {
+export function SnapshotDiffViewer({
+  diff,
+  missingBase = false,
+  missingTarget = false,
+}: Props) {
   const { t } = useTranslation('dataManagement')
   const hunks = useMemo(() => parseSnapshotDiff(diff), [diff])
   const rows = hunks.flatMap((hunk) => hunk.rows)
@@ -32,6 +38,24 @@ export function SnapshotDiffViewer({ diff }: Props) {
           <span className="text-red-700 dark:text-red-400">−{removed}</span>
         </div>
       </div>
+      {(missingBase || missingTarget) && (
+        <div className="grid shrink-0 gap-2 text-xs md:grid-cols-2">
+          <div>
+            {missingBase && (
+              <span className="inline-block rounded border border-muted-foreground/30 bg-muted px-2 py-1 text-muted-foreground">
+                {t('versionMissingFile')}
+              </span>
+            )}
+          </div>
+          <div>
+            {missingTarget && (
+              <span className="inline-block rounded border border-muted-foreground/30 bg-muted px-2 py-1 text-muted-foreground">
+                {t('versionMissingFile')}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
       {hunks.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('noChanges')}</p>
       ) : (

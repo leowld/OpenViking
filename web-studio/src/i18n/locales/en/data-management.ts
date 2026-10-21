@@ -17,6 +17,7 @@ const dataManagement = {
   selectedVersion: 'Target version',
   currentContent: 'Current content (including unsnapshotted edits)',
   invalidSnapshotContent: 'Could not read snapshot content.',
+  versionMissingFile: 'This version does not contain this file',
   emptyVersion: 'Empty file (compare with first snapshot)',
   comparingVersions: 'Comparing versions...',
   selectDifferentVersions: 'Choose two different versions.',
