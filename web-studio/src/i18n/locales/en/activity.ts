@@ -766,7 +766,7 @@ const activity = {
         },
         ls: {
           description: 'View resources',
-          usage: '/ls [viking://resources/...]',
+          usage: '/ls [<URI>]',
         },
         search: {
           description: 'Semantic search',
@@ -778,7 +778,7 @@ const activity = {
         },
         read: {
           description: 'Read a resource file',
-          usage: '/read viking://resources/.../file.md',
+          usage: '/read <URI>',
         },
         compile: {
           description: 'Compile source materials with a Skill',
@@ -796,7 +796,7 @@ const activity = {
         addResource: {
           description: 'Add external resources',
           usage:
-            '/add-resource [<URL> [--to <URI>|--parent <URI>] [--args <JSON>]]',
+            '/add-resource <URL> [--to <URI>|--parent <URI>] [--args <JSON>]',
         },
         write: {
           description: 'Write or append resource content',
@@ -812,27 +812,27 @@ const activity = {
         },
         task: {
           description: 'Inspect and manage compile tasks',
-          usage: '/task list|status|cancel ...',
+          usage: '/task <list|status|cancel> [<task ID>]',
         },
         session: {
           description: 'Manage Agent sessions',
-          usage: '/session subcommand',
+          usage: '/session <subcommand>',
         },
         tree: {
           description: 'Show directory tree',
-          usage: '/tree [viking://resources/...]',
+          usage: '/tree [<URI>]',
         },
         stat: {
           description: 'Show resource metadata',
-          usage: '/stat viking://resources/...',
+          usage: '/stat <URI>',
         },
         abstract: {
           description: 'Read directory abstract',
-          usage: '/abstract viking://resources/...',
+          usage: '/abstract <URI>',
         },
         overview: {
           description: 'Read directory overview',
-          usage: '/overview viking://resources/...',
+          usage: '/overview <URI>',
         },
         health: {
           description: 'Show backend health',

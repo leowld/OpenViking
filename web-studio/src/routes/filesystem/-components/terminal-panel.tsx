@@ -79,6 +79,7 @@ import type { VikingFsEntry } from '#/routes/resources/-types/viking-fm'
 import type { SessionListItem } from '@ov-server/api/v1/sessions'
 
 import { ROOT_URI, TERMINAL_COMMANDS } from '../-lib/constants'
+import { getCommandInputHint } from '../-lib/terminal-input-hint'
 import {
   parseAddMemory,
   parseAddResource,
@@ -181,7 +182,7 @@ const SESSION_SUBCOMMANDS: SessionSubcommandHelp[] = [
     insertText: '/session context ',
     key: 'context',
     parameters: ['sessionId', 'tokenBudget'],
-    usage: '/session context [session_id] --token-budget 8000',
+    usage: '/session context [<session_id>] [--token-budget <tokens>]',
   },
   {
     examples: ['session.messages'],
@@ -202,21 +203,21 @@ const SESSION_SUBCOMMANDS: SessionSubcommandHelp[] = [
     insertText: '/session commit ',
     key: 'commit',
     parameters: ['sessionId', 'keepRecent'],
-    usage: '/session commit [session_id] --keep-recent 10',
+    usage: '/session commit [<session_id>] [--keep-recent <count>]',
   },
   {
     examples: ['session.message'],
     insertText: '/session message ',
     key: 'message',
     parameters: ['sessionId', 'messageRole', 'messageContent'],
-    usage: '/session message [session_id] user hello',
+    usage: '/session message [<session_id>] <role> <content>',
   },
   {
     examples: ['session.toolResults'],
     insertText: '/session tool-results ',
     key: 'tool-results',
     parameters: ['sessionId', 'toolName', 'limit'],
-    usage: '/session tool-results [session_id] --limit 20',
+    usage: '/session tool-results [<session_id>] [--limit <count>]',
   },
   {
     examples: ['session.toolResult'],
@@ -230,7 +231,7 @@ const SESSION_SUBCOMMANDS: SessionSubcommandHelp[] = [
     insertText: '/session tool-search ',
     key: 'tool-search',
     parameters: ['sessionId', 'toolResultId', 'query', 'limit', 'contextChars'],
-    usage: '/session tool-search [session_id] <tool_result_id> query',
+    usage: '/session tool-search [<session_id>] <tool_result_id> <query>',
   },
   {
     examples: ['session.delete'],
@@ -584,6 +585,11 @@ export function TerminalPanel({
           rawQuery === item.command || rawQuery.startsWith(`${item.command} `),
       )
   }, [command, commands])
+
+  const inputHint = useMemo(
+    () => getCommandInputHint(command, [...commands, ...SESSION_SUBCOMMANDS]),
+    [command, commands],
+  )
 
   const suggestions = useMemo<TerminalSuggestion[]>(() => {
     const rawQuery = command.trimStart()
@@ -1939,75 +1945,88 @@ export function TerminalPanel({
               {currentUri}
             </span>
             <div className="flex min-w-0 items-center gap-2">
-              <input
-                ref={inputRef}
-                value={command}
-                onBlur={() => {
-                  window.setTimeout(() => {
-                    setInputFocused(false)
-                    setSuggestionsOpen(false)
-                  }, 120)
-                }}
-                onChange={(event) => {
-                  setCommand(event.target.value)
-                  setSuggestionsOpen(true)
-                  setPreviewSuggestionIndex(null)
-                }}
-                onFocus={() => {
-                  setInputFocused(true)
-                  setSuggestionsOpen(true)
-                }}
-                onKeyDown={(event) => {
-                  if (!suggestionsOpen || suggestions.length === 0) return
-                  if (event.key === 'ArrowDown') {
-                    event.preventDefault()
-                    setActiveSuggestionIndex((current) =>
-                      Math.min(current + 1, suggestions.length - 1),
-                    )
-                    setPreviewSuggestionIndex((current) =>
-                      Math.min(
-                        (current ?? activeSuggestionIndex) + 1,
-                        suggestions.length - 1,
-                      ),
-                    )
-                    return
-                  }
-                  if (event.key === 'ArrowUp') {
-                    event.preventDefault()
-                    setActiveSuggestionIndex((current) =>
-                      Math.max(current - 1, 0),
-                    )
-                    setPreviewSuggestionIndex((current) =>
-                      Math.max((current ?? activeSuggestionIndex) - 1, 0),
-                    )
-                    return
-                  }
-                  if (event.key === 'Tab') {
-                    event.preventDefault()
-                    acceptSuggestion(suggestions[activeSuggestionIndex])
-                    return
-                  }
-                  if (
-                    event.key === 'ArrowRight' &&
-                    event.currentTarget.selectionStart === command.length &&
-                    event.currentTarget.selectionEnd === command.length
-                  ) {
-                    event.preventDefault()
-                    acceptSuggestion(suggestions[activeSuggestionIndex])
-                    return
-                  }
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    acceptSuggestion(suggestions[activeSuggestionIndex])
-                    return
-                  }
-                  if (event.key === 'Escape') {
-                    setSuggestionsOpen(false)
-                  }
-                }}
-                placeholder={t('terminal.placeholder')}
-                className="h-8 min-w-0 flex-1 bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground/80"
-              />
+              <div className="relative min-w-0 flex-1">
+                {inputHint ? (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 flex h-8 min-w-0 items-center overflow-hidden whitespace-pre font-mono text-xs"
+                  >
+                    <span className="text-transparent">{command}</span>
+                    <span className="truncate text-muted-foreground/70">
+                      {inputHint}
+                    </span>
+                  </div>
+                ) : null}
+                <input
+                  ref={inputRef}
+                  value={command}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      setInputFocused(false)
+                      setSuggestionsOpen(false)
+                    }, 120)
+                  }}
+                  onChange={(event) => {
+                    setCommand(event.target.value)
+                    setSuggestionsOpen(true)
+                    setPreviewSuggestionIndex(null)
+                  }}
+                  onFocus={() => {
+                    setInputFocused(true)
+                    setSuggestionsOpen(true)
+                  }}
+                  onKeyDown={(event) => {
+                    if (!suggestionsOpen || suggestions.length === 0) return
+                    if (event.key === 'ArrowDown') {
+                      event.preventDefault()
+                      setActiveSuggestionIndex((current) =>
+                        Math.min(current + 1, suggestions.length - 1),
+                      )
+                      setPreviewSuggestionIndex((current) =>
+                        Math.min(
+                          (current ?? activeSuggestionIndex) + 1,
+                          suggestions.length - 1,
+                        ),
+                      )
+                      return
+                    }
+                    if (event.key === 'ArrowUp') {
+                      event.preventDefault()
+                      setActiveSuggestionIndex((current) =>
+                        Math.max(current - 1, 0),
+                      )
+                      setPreviewSuggestionIndex((current) =>
+                        Math.max((current ?? activeSuggestionIndex) - 1, 0),
+                      )
+                      return
+                    }
+                    if (event.key === 'Tab') {
+                      event.preventDefault()
+                      acceptSuggestion(suggestions[activeSuggestionIndex])
+                      return
+                    }
+                    if (
+                      event.key === 'ArrowRight' &&
+                      event.currentTarget.selectionStart === command.length &&
+                      event.currentTarget.selectionEnd === command.length
+                    ) {
+                      event.preventDefault()
+                      acceptSuggestion(suggestions[activeSuggestionIndex])
+                      return
+                    }
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      acceptSuggestion(suggestions[activeSuggestionIndex])
+                      return
+                    }
+                    if (event.key === 'Escape') {
+                      setSuggestionsOpen(false)
+                    }
+                  }}
+                  placeholder={t('terminal.placeholder')}
+                  className="relative h-8 w-full min-w-0 bg-transparent font-mono text-xs outline-none placeholder:text-muted-foreground/80"
+                />
+              </div>
               {showCommandAssist ? (
                 <div className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-30">
                   {displayHelpCommand ? (

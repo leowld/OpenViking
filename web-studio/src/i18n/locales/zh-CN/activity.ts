@@ -729,7 +729,7 @@ const activity = {
         },
         ls: {
           description: '查看已有资源',
-          usage: '/ls [viking://resources/...]',
+          usage: '/ls [<URI>]',
         },
         search: {
           description: '语义检索上下文',
@@ -741,7 +741,7 @@ const activity = {
         },
         read: {
           description: '读取资源文件',
-          usage: '/read viking://resources/.../file.md',
+          usage: '/read <URI>',
         },
         compile: {
           description: '使用 Skill 编译素材',
@@ -759,7 +759,7 @@ const activity = {
         addResource: {
           description: '添加外部资源',
           usage:
-            '/add-resource [<URL> [--to <URI>|--parent <URI>] [--args <JSON>]]',
+            '/add-resource <URL> [--to <URI>|--parent <URI>] [--args <JSON>]',
         },
         write: {
           description: '写入或追加资源文件',
@@ -775,27 +775,27 @@ const activity = {
         },
         task: {
           description: '查看和管理编译任务',
-          usage: '/task list|status|cancel ...',
+          usage: '/task <list|status|cancel> [<任务 ID>]',
         },
         session: {
           description: '管理 Agent 会话',
-          usage: '/session 子命令',
+          usage: '/session <子命令>',
         },
         tree: {
           description: '展示目录树',
-          usage: '/tree [viking://resources/...]',
+          usage: '/tree [<URI>]',
         },
         stat: {
           description: '查看资源元信息',
-          usage: '/stat viking://resources/...',
+          usage: '/stat <URI>',
         },
         abstract: {
           description: '读取目录摘要',
-          usage: '/abstract viking://resources/...',
+          usage: '/abstract <URI>',
         },
         overview: {
           description: '读取目录概览',
-          usage: '/overview viking://resources/...',
+          usage: '/overview <URI>',
         },
         health: {
           description: '查看后端健康状态',
