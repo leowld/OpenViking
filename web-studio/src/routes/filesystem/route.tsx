@@ -727,7 +727,6 @@ function FilesystemWorkbench() {
               currentUri={currentUri}
               entries={entries}
               onCollapse={toggleRightCollapsed}
-              onOpenAddResource={() => setUploadDialogOpen(true)}
               onOpenResource={revealResource}
               onPanelChange={handlePanelChange}
               onSessionChange={(sessionId) =>
@@ -746,7 +745,6 @@ function FilesystemWorkbench() {
           currentUri={currentUri}
           entries={entries}
           onClose={() => setActionPanelOpen(false)}
-          onOpenAddResource={() => setUploadDialogOpen(true)}
           onOpenResource={revealResource}
           onPanelChange={handlePanelChange}
           onSessionChange={(sessionId) => syncSearch({ session: sessionId })}
@@ -843,7 +841,6 @@ function FilesystemActionPanel({
   currentUri,
   entries,
   onCollapse,
-  onOpenAddResource,
   onOpenResource,
   onPanelChange,
   onSessionChange,
@@ -854,7 +851,6 @@ function FilesystemActionPanel({
   currentUri: string
   entries: VikingFsEntry[]
   onCollapse: () => void
-  onOpenAddResource: () => void
   onOpenResource: ResourceOpenHandler
   onPanelChange: (panel: FilesystemPanel) => void
   onSessionChange: (sessionId: string) => void
@@ -893,7 +889,6 @@ function FilesystemActionPanel({
         activePanel={activePanel}
         currentUri={currentUri}
         entries={entries}
-        onOpenAddResource={onOpenAddResource}
         onOpenResource={onOpenResource}
         onSessionChange={onSessionChange}
         openingUri={openingUri}
@@ -909,7 +904,6 @@ function FilesystemMobileActionScreen({
   currentUri,
   entries,
   onClose,
-  onOpenAddResource,
   onOpenResource,
   onPanelChange,
   onSessionChange,
@@ -921,7 +915,6 @@ function FilesystemMobileActionScreen({
   currentUri: string
   entries: VikingFsEntry[]
   onClose: () => void
-  onOpenAddResource: () => void
   onOpenResource: ResourceOpenHandler
   onPanelChange: (panel: FilesystemPanel) => void
   onSessionChange: (sessionId: string) => void
@@ -964,7 +957,6 @@ function FilesystemMobileActionScreen({
           activePanel={activePanel}
           currentUri={currentUri}
           entries={entries}
-          onOpenAddResource={onOpenAddResource}
           onOpenResource={onOpenResource}
           onSessionChange={onSessionChange}
           openingUri={openingUri}
@@ -1007,7 +999,6 @@ function FilesystemActionContent({
   activePanel,
   currentUri,
   entries,
-  onOpenAddResource,
   onOpenResource,
   onSessionChange,
   openingUri,
@@ -1017,7 +1008,6 @@ function FilesystemActionContent({
   activePanel: FilesystemPanel
   currentUri: string
   entries: VikingFsEntry[]
-  onOpenAddResource: () => void
   onOpenResource: ResourceOpenHandler
   onSessionChange: (sessionId: string) => void
   openingUri: string | null
@@ -1030,7 +1020,6 @@ function FilesystemActionContent({
         <TerminalPanel
           currentUri={currentUri}
           entries={entries}
-          onOpenAddResource={onOpenAddResource}
           onOpenResource={onOpenResource}
           onSessionChange={onSessionChange}
           openingUri={openingUri}
