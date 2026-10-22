@@ -2288,7 +2288,7 @@ export function TerminalPanel({
       </div>
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent className="gap-4 sm:max-w-2xl">
-          <DialogHeader>
+          <DialogHeader className="pr-10">
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 <DialogTitle>{t('terminal.historyTitle')}</DialogTitle>
