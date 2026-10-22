@@ -3,12 +3,61 @@ import {
   parseAddMemory,
   parseAddResource,
   parseAddSkill,
+  submitMemoryCommand,
   taskResultDetails,
   taskResultResourceUri,
   waitForResourceTask,
 } from './terminal-actions'
 
 describe('terminal import commands', () => {
+  it('stops a memory submission when its connection changes during session creation', async () => {
+    let finishCreate!: (session: { session_id: string }) => void
+    const createSession = vi.fn(
+      () =>
+        new Promise<{ session_id: string }>((resolve) => {
+          finishCreate = resolve
+        }),
+    )
+    const addMessage = vi.fn().mockResolvedValue(undefined)
+    const commitSession = vi.fn().mockResolvedValue({ task_id: 'task' })
+    let active = true
+    const submission = submitMemoryCommand('secret', undefined, () => active, {
+      createSession,
+      addMessage,
+      commitSession,
+    })
+    active = false
+    finishCreate({ session_id: 'old-session' })
+    expect(await submission).toBeUndefined()
+    expect(addMessage).not.toHaveBeenCalled()
+    expect(commitSession).not.toHaveBeenCalled()
+  })
+
+  it('does not commit a memory after switching connections during addMessage', async () => {
+    let finishMessage!: () => void
+    const addMessage = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishMessage = resolve
+        }),
+    )
+    const commitSession = vi.fn().mockResolvedValue({ task_id: 'task' })
+    let active = true
+    const submission = submitMemoryCommand(
+      'secret',
+      'old-session',
+      () => active,
+      {
+        createSession: vi.fn(),
+        addMessage,
+        commitSession,
+      },
+    )
+    active = false
+    finishMessage()
+    expect(await submission).toBeUndefined()
+    expect(commitSession).not.toHaveBeenCalled()
+  })
   it('accepts quoted memory content and a session ID', () => {
     expect(
       parseAddMemory('/add-memory "a useful fact" --session-id session-1'),

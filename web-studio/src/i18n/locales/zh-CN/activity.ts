@@ -229,6 +229,12 @@ const activity = {
       parameterRequired: '必填',
       parameterDescription: '说明',
       parameterDefault: '默认值',
+      parameterTypes: {
+        Text: '文本',
+        URI: 'URI',
+        Number: '数字',
+        Boolean: '布尔值',
+      },
       yes: '是',
       no: '否',
       helpExamples: '示例',

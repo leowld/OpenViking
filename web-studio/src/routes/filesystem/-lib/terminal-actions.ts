@@ -12,6 +12,25 @@ export class TerminalActionError extends Error {
   }
 }
 
+export async function submitMemoryCommand(
+  content: string,
+  sessionId: string | undefined,
+  isActive: () => boolean,
+  actions: {
+    createSession: () => Promise<{ session_id: string }>
+    addMessage: (id: string, role: 'user', content: string) => Promise<unknown>
+    commitSession: (id: string) => Promise<{ task_id?: string | null }>
+  },
+) {
+  const id = sessionId ?? (await actions.createSession()).session_id
+  if (!isActive()) return
+  await actions.addMessage(id, 'user', content)
+  if (!isActive()) return
+  const result = await actions.commitSession(id)
+  if (!isActive()) return
+  return { id, result }
+}
+
 export type ResourceTaskState = {
   status: string
   error?: string | null

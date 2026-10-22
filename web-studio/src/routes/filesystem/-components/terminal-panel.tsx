@@ -1,5 +1,5 @@
 import i18n from '#/i18n/core'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   active as activeCompileTask,
   fetchCompileSkills,
@@ -85,6 +85,7 @@ import {
   parseAddResource,
   parseAddSkill,
   parseWrite,
+  submitMemoryCommand,
   taskResultDetails,
   taskResultResourceUri,
   TerminalActionError,
@@ -500,6 +501,13 @@ export function TerminalPanel({
   })
   const identityRef = useRef(identityScopeKey)
   identityRef.current = identityScopeKey
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
   const resourcePollsRef = useRef(new Set<AbortController>())
   const trackedResourceEntriesRef = useRef(new Set<string>())
   useEffect(() => {
@@ -1140,11 +1148,15 @@ export function TerminalPanel({
           if (/^(?:ov\s+)?\/?add-memory(?:\s|$)/.test(trimmed)) {
             const { content, sessionId: targetSessionId } =
               parseAddMemory(trimmed)
-            const id = targetSessionId ?? (await createSession()).session_id
-            await addMessage(id, 'user', content)
-            if (identityRef.current !== identityScopeKey) return
-            const result = await commitSession(id)
-            if (identityRef.current !== identityScopeKey) return
+            const submission = await submitMemoryCommand(
+              content,
+              targetSessionId,
+              () =>
+                mountedRef.current && identityRef.current === identityScopeKey,
+              { createSession, addMessage, commitSession },
+            )
+            if (!submission) return
+            const { id, result } = submission
             if (result.task_id) {
               trackBackgroundTask(
                 result.task_id,
@@ -2153,7 +2165,9 @@ export function TerminalPanel({
                                               {parameter.name}
                                             </span>
                                             <span className="mt-1 inline-block rounded bg-muted px-1 py-0.5 text-[9px] leading-none text-muted-foreground">
-                                              {parameter.type}
+                                              {t(
+                                                `terminal.parameterTypes.${parameter.type}`,
+                                              )}
                                             </span>
                                           </td>
                                           <td className="align-top px-1 py-1.5 text-center text-muted-foreground">
@@ -2535,7 +2549,7 @@ export function TerminalHistoryItem({
   )
 }
 
-function CompileTaskResult({
+export function CompileTaskResult({
   taskId,
   fallback,
   onOpenResource,
@@ -2546,6 +2560,8 @@ function CompileTaskResult({
 }) {
   const { t } = useTranslation('compile')
   const { identityScopeKey } = useAppConnection()
+  const queryClient = useQueryClient()
+  const refreshedTasksRef = useRef(new Set<string>())
   const query = useQuery({
     queryKey: ['compile-task', identityScopeKey, taskId],
     queryFn: ({ signal }) => fetchCompileTask(taskId, signal),
@@ -2555,6 +2571,14 @@ function CompileTaskResult({
         : false,
   })
   const task = query.data
+  useEffect(() => {
+    const key = `${identityScopeKey}:${taskId}`
+    if (task?.status !== 'completed' || refreshedTasksRef.current.has(key))
+      return
+    refreshedTasksRef.current.add(key)
+    void queryClient.invalidateQueries({ queryKey: ['viking-fs'] })
+    void queryClient.invalidateQueries({ queryKey: ['viking-file-read'] })
+  }, [identityScopeKey, queryClient, task?.status, taskId])
   const rows = task
     ? [
         { label: t('terminalResult.taskId'), value: task.task_id },
@@ -2579,8 +2603,17 @@ function CompileTaskResult({
         task.resource_id && {
           label: t('terminalResult.resourceId'),
           value: task.resource_id,
-          uri: task.resource_id,
         },
+        task.meta?.request?.to && {
+          label: t('terminalResult.outputUri'),
+          value: task.meta.request.to,
+          uri: task.meta.request.to,
+        },
+        ...(task.meta?.request?.from ?? []).map((uri, index) => ({
+          label: t('terminalResult.inputUri', { index: index + 1 }),
+          value: uri,
+          uri,
+        })),
         task.meta?.request && {
           label: t('terminalResult.request'),
           value: JSON.stringify(task.meta.request),

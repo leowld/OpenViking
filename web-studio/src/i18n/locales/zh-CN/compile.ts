@@ -151,6 +151,8 @@ export default {
     createdAt: '创建时间',
     updatedAt: '更新时间',
     resourceId: '资源 ID',
+    outputUri: '输出 URI',
+    inputUri: '输入 URI {{index}}',
     request: '请求',
     stage: '阶段',
     createdAtIso: '创建时间 ISO',

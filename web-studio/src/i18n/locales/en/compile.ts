@@ -164,6 +164,8 @@ export default {
     createdAt: 'Created at',
     updatedAt: 'Updated at',
     resourceId: 'Resource ID',
+    outputUri: 'Output URI',
+    inputUri: 'Input URI {{index}}',
     request: 'Request',
     stage: 'Stage',
     createdAtIso: 'Created at ISO',

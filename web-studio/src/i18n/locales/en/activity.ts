@@ -239,6 +239,12 @@ const activity = {
       parameterRequired: 'Required',
       parameterDescription: 'Description',
       parameterDefault: 'Default',
+      parameterTypes: {
+        Text: 'Text',
+        URI: 'URI',
+        Number: 'Number',
+        Boolean: 'Boolean',
+      },
       yes: 'Yes',
       no: 'No',
       helpExamples: 'Examples',
