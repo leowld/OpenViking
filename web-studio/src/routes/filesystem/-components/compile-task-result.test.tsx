@@ -48,7 +48,13 @@ it('refreshes explorer data and opens the output URI after compilation completes
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  const invalidate = vi.spyOn(client, 'invalidateQueries')
+  const explorerKeys = [
+    ['viking-fs-ls', 'viking://resources/', {}],
+    ['viking-fs-tree', 'viking://resources/', {}],
+    ['viking-fs-stat', 'viking://resources/output'],
+    ['viking-file-read', 'viking://resources/output', '', {}],
+  ]
+  for (const key of explorerKeys) client.setQueryData(key, { stale: true })
   const onOpenResource = vi.fn()
   render(
     <QueryClientProvider client={client}>
@@ -60,8 +66,8 @@ it('refreshes explorer data and opens the output URI after compilation completes
     expect(
       screen.getByRole('button', { name: 'viking://resources/output' }),
     ).not.toBeNull()
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['viking-fs'] })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['viking-file-read'] })
+    for (const key of explorerKeys)
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true)
   })
   fireEvent.click(
     screen.getByRole('button', { name: 'viking://resources/output' }),

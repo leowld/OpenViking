@@ -1,5 +1,5 @@
 import i18n from '#/i18n/core'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   active as activeCompileTask,
   fetchCompileSkills,
@@ -2560,7 +2560,7 @@ export function CompileTaskResult({
 }) {
   const { t } = useTranslation('compile')
   const { identityScopeKey } = useAppConnection()
-  const queryClient = useQueryClient()
+  const { invalidateAll, invalidatePreview } = useInvalidateVikingFs()
   const refreshedTasksRef = useRef(new Set<string>())
   const query = useQuery({
     queryKey: ['compile-task', identityScopeKey, taskId],
@@ -2576,9 +2576,9 @@ export function CompileTaskResult({
     if (task?.status !== 'completed' || refreshedTasksRef.current.has(key))
       return
     refreshedTasksRef.current.add(key)
-    void queryClient.invalidateQueries({ queryKey: ['viking-fs'] })
-    void queryClient.invalidateQueries({ queryKey: ['viking-file-read'] })
-  }, [identityScopeKey, queryClient, task?.status, taskId])
+    void invalidateAll()
+    void invalidatePreview()
+  }, [identityScopeKey, invalidateAll, invalidatePreview, task?.status, taskId])
   const rows = task
     ? [
         { label: t('terminalResult.taskId'), value: task.task_id },
