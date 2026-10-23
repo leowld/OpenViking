@@ -52,6 +52,18 @@ function CompileDetail() {
   const task = query.data,
     request = task?.meta?.request
   const previousStatus = useRef<{ id: string; status?: string } | null>(null)
+  const refreshedOutput = useRef('')
+  useEffect(() => {
+    const scope = `${identityScopeKey}:${taskId}`
+    if (task?.status !== 'completed' || refreshedOutput.current === scope)
+      return
+    refreshedOutput.current = scope
+    void client.invalidateQueries({ queryKey: ['viking-fs'] })
+    void client.invalidateQueries({ queryKey: ['viking-file-read'] })
+    void client.invalidateQueries({
+      queryKey: ['dir-picker', identityScopeKey],
+    })
+  }, [client, identityScopeKey, taskId, task?.status])
   useEffect(() => {
     if (
       previousStatus.current?.id === taskId &&
@@ -163,6 +175,27 @@ function CompileDetail() {
           </section>
           {stop.isError && <CompileError error={stop.error} />}
           {task.error && <CompileError error={task.error} />}
+          {task.status === 'completed' && request?.to && (
+            <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-muted/20 p-5">
+              <div className="min-w-0">
+                <h2 className="font-medium">{t('viewGenerated')}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t('outputHint')}
+                </p>
+                <p className="mt-2 break-words text-sm">
+                  {request.to.split('/').filter(Boolean).pop()}
+                </p>
+              </div>
+              <Link
+                to="/filesystem"
+                search={{ uri: request.to }}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                <FolderOutput className="size-4" />
+                {t('viewGenerated')}
+              </Link>
+            </section>
+          )}
           <div role="tablist" className="flex gap-2 border-b pb-3">
             {TABS.map((item) => (
               <Button
@@ -268,7 +301,7 @@ function CompileDetail() {
                     {t('noResult')}
                   </p>
                 ) : (
-                  <details open>
+                  <details>
                     <summary className="text-sm font-medium">
                       {t('raw')}
                     </summary>
