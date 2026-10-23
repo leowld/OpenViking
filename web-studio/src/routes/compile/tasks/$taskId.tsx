@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { useAppConnection } from '#/hooks/use-app-connection'
+import { useInvalidateVikingFs } from '#/routes/resources/-hooks/viking-fm'
 import { TaskExecutionEvents } from '#/routes/tasks/-components/task-execution-events'
 import {
   CompileError,
@@ -33,6 +34,7 @@ function CompileDetail() {
     { t, i18n } = useTranslation('compile')
   const { identityScopeKey, connectionRole } = useAppConnection(),
     client = useQueryClient()
+  const { invalidateAll, invalidatePreview } = useInvalidateVikingFs()
   const [tab, setTab] = useState<'overview' | 'events' | 'result'>('overview')
   const key = ['compile-task', identityScopeKey, taskId]
   const query = useQuery({
@@ -58,12 +60,19 @@ function CompileDetail() {
     if (task?.status !== 'completed' || refreshedOutput.current === scope)
       return
     refreshedOutput.current = scope
-    void client.invalidateQueries({ queryKey: ['viking-fs'] })
-    void client.invalidateQueries({ queryKey: ['viking-file-read'] })
+    void invalidateAll()
+    void invalidatePreview()
     void client.invalidateQueries({
       queryKey: ['dir-picker', identityScopeKey],
     })
-  }, [client, identityScopeKey, taskId, task?.status])
+  }, [
+    client,
+    identityScopeKey,
+    invalidateAll,
+    invalidatePreview,
+    taskId,
+    task?.status,
+  ])
   useEffect(() => {
     if (
       previousStatus.current?.id === taskId &&
