@@ -224,6 +224,14 @@ The lock mechanism uses two lock types to handle different conflict patterns:
 
 Exact and Tree describe an operation's scope; file, directory, and missing describe the target's current state. These are independent. Locks protect path names, including names that do not currently exist.
 
+Lock paths must be absolute. The Manager rejects empty or relative paths, repeated
+`/`, `.` or `..` components, and NUL with `InvalidRequest` before acquiring locks
+or checking lease coverage. A single trailing `/` is stripped, except at `/`.
+Redis and SQLite token operations require this normalized form; Redis Lua batch
+acquisition also validates every request before mutating tokens. Use
+`/local/account-a/file`, rather than aliases such as `/local/account-a/./file`
+or `/local/account-a//file`.
+
 The following conflicts apply to different owners within the same provider scope:
 
 | Held lock | New request | Conflict |
@@ -293,8 +301,11 @@ HASH keys are isolated by path scope:
 
 All keys use `{service_name}` as the Redis Cluster hash tag. Exact acquisition
 reads the target and ancestors with `HMGET`; Tree acquisition scans only its
-scope HASH with `HGETALL`. Global `/` and `/local` locks do not scan account
-or `_system` HASHes. Cross-scope batches are rejected.
+scope HASH with `HGETALL`. Tree locks at `/` and `/local` are rejected with
+`InvalidRequest`, because their subtrees span account and `_system` HASHes.
+Use `/local/<account>` or `/local/_system` (or a descendant) as the Tree root.
+Exact locks at `/` and `/local` remain supported and protect only those paths.
+Cross-scope batches are rejected.
 
 ### Filesystem Lock Acquisition (EXACT mode)
 
@@ -440,8 +451,14 @@ Redis-backed configuration:
 
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
-| `provider` | str | `filesystem`, `memory`, or `cache` | `filesystem` |
+| `provider` | str | `filesystem`, `memory`, `sqlite`, or `cache` | `filesystem` |
+| `sqlite_path` | str / null | Optional absolute local database path for `sqlite`; see [SQLite setup](../configuration/01-server.md#storage) | `{storage.workspace}/_system/pathlock/pathlock.db` for `sqlite` |
 | `lock_expire_secs` | float | Seconds before an unrefreshed lock becomes stale | `30.0` |
+
+For replicas sharing EFS across containers or hosts, use `provider="cache"` with
+shared Redis. SQLite is limited to one shared database file on the same machine's
+local disk; EFS/NFS/SMB and independent container-local databases are unsupported.
+See [deployment limits and provider selection](../configuration/01-server.md#storage).
 
 Legacy compatibility form:
 
