@@ -37,6 +37,7 @@ from vikingbot.agent.subagent import SubagentManager
 from vikingbot.agent.tools.base import ToolContext
 from vikingbot.agent.tools.compile import (
     CompileChildTool,
+    CompileImageReadTool,
     CompileSpawnTool,
     SubmitCompileDraftTool,
     SubmitWikiBundleTool,
@@ -71,7 +72,7 @@ from vikingbot.compile.renderer import (
     validate_declared_okf_markdown,
 )
 from vikingbot.compile.sandbox import CompileSandboxManager
-from vikingbot.compile.sources import CompileSourceRange, pack_source_batches
+from vikingbot.compile.sources import CompileSourceRange, pack_source_batches, read_source
 from vikingbot.compile.store import CompileTaskStore
 from vikingbot.config.schema import SandboxBackend, SandboxMode, SessionKey
 from vikingbot.openviking_mount.ov_server import VikingClient
@@ -1144,7 +1145,8 @@ class BotCompileService:
             for start in range(0, len(ordered), 8):
                 uris = ordered[start : start + 8]
                 contents = await asyncio.gather(
-                    *(client.read_raw(uri) for uri in uris), return_exceptions=True
+                    *(read_source(client, uri, pipeline.model.provider) for uri in uris),
+                    return_exceptions=True,
                 )
                 readable = []
                 for uri, content in zip(uris, contents, strict=True):
@@ -1152,6 +1154,11 @@ class BotCompileService:
                         manifest = await pipeline.files.get("inputs")
                         manifest[uri] = "failed"
                         await pipeline.files.put("inputs", manifest)
+                        if (
+                            isinstance(content, CompileFailure)
+                            and content.code == "UNSUPPORTED_MEDIA"
+                        ):
+                            raise content
                         pipeline.failures.append(f"Source read failed: {uri}: {str(content)[:400]}")
                     elif isinstance(content, BaseException):
                         raise content
@@ -1576,11 +1583,13 @@ class BotCompileService:
         self, client: VikingClient, roots: list[str], *, files: list[str] | None = None
     ) -> list[list[CompileSourceRange]]:
         """Read selected files (or inventory roots) eight at a time; read errors propagate."""
-        sources: list[tuple[str, str]] = []
+        sources: list[tuple[str, str | CompileSourceRange]] = []
         ordered = files if files is not None else await self._list_source_files(client, roots)
         for start in range(0, len(ordered), 8):
             uris = ordered[start : start + 8]
-            contents = await asyncio.gather(*(client.read_raw(uri) for uri in uris))
+            contents = await asyncio.gather(
+                *(read_source(client, uri, self.agent_loop.provider) for uri in uris)
+            )
             sources.extend(zip(uris, contents, strict=True))
         return pack_source_batches(sources, self.limits)
 
@@ -1605,6 +1614,12 @@ class BotCompileService:
             return None
         manager = request_loop.subagents
         claimed_roots: set[str] = set()
+        image_hashes = {
+            part.uri: part.sha256
+            for batch in source_batches or []
+            for part in batch
+            if part.image and part.sha256
+        }
 
         async def run_child(
             child_id: str,
@@ -1669,6 +1684,8 @@ class BotCompileService:
             for name in _COMPILE_READ_TOOLS:
                 tool = registry.get(name)
                 if tool is not None:
+                    if name == "openviking_multi_read" and image_hashes:
+                        tool = CompileImageReadTool(tool, image_hashes)
                     child_tools.register(tool)
 
             async def require_draft_submission(context: _PlainTextContext) -> _PlainTextDelivered:
