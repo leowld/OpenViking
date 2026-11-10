@@ -15,6 +15,7 @@ export function useTourPosition(
   anchor: HTMLElement | null,
   surface: HTMLDivElement | null,
   placement: 'right' | 'left',
+  elements: readonly HTMLElement[],
 ) {
   const [position, setPosition] = useState<Position>();
   // Subscribe to external browser layout, scroll and DOM removal after both
@@ -25,6 +26,18 @@ export function useTourPosition(
     surface.showPopover?.();
     const update = () => {
       const a = anchor?.getBoundingClientRect();
+      const bounds = elements
+        .filter((node) => node.isConnected)
+        .map((node) => node.getBoundingClientRect());
+      const group = bounds.length
+        ? {
+            top: Math.min(...bounds.map((r) => r.top)),
+            left: Math.min(...bounds.map((r) => r.left)),
+            right: Math.max(...bounds.map((r) => r.right)),
+            bottom: Math.max(...bounds.map((r) => r.bottom)),
+          }
+        : a;
+      let highlight = group;
       const box = surface.getBoundingClientRect();
       const width = window.innerWidth;
       const height = window.innerHeight;
@@ -56,16 +69,23 @@ export function useTourPosition(
               bottom: Math.min(clip.bottom, rect.bottom),
             };
         }
+        const target = group ?? a;
         visible =
-          anchor.isConnected &&
-          a.width > 0 &&
-          a.height > 0 &&
-          a.top < clip.bottom &&
-          a.bottom > clip.top &&
-          a.left < clip.right &&
-          a.right > clip.left;
-        const right = a.right + 6;
-        const leftSide = a.left - box.width - 6;
+          target.right > target.left &&
+          target.bottom > target.top &&
+          target.top < clip.bottom &&
+          target.bottom > clip.top &&
+          target.left < clip.right &&
+          target.right > clip.left;
+        if (group)
+          highlight = {
+            top: Math.max(group.top, clip.top),
+            left: Math.max(group.left, clip.left),
+            right: Math.min(group.right, clip.right),
+            bottom: Math.min(group.bottom, clip.bottom),
+          };
+        const right = (group?.right ?? a.right) + 6;
+        const leftSide = (group?.left ?? a.left) - box.width - 6;
         left =
           placement === 'right'
             ? right + box.width <= width - margin || leftSide < margin
@@ -86,10 +106,14 @@ export function useTourPosition(
       const next = {
         left: Math.max(margin, Math.min(left, width - box.width - margin)),
         top: Math.max(margin, Math.min(top, height - box.height - margin)),
-        targetTop: a?.top ?? 0,
-        targetLeft: a?.left ?? 0,
-        targetWidth: a?.width ?? 0,
-        targetHeight: a?.height ?? 0,
+        targetTop: highlight?.top ?? 0,
+        targetLeft: highlight?.left ?? 0,
+        targetWidth: highlight
+          ? Math.max(0, highlight.right - highlight.left)
+          : 0,
+        targetHeight: highlight
+          ? Math.max(0, highlight.bottom - highlight.top)
+          : 0,
         visible,
         missing,
       };
@@ -107,6 +131,7 @@ export function useTourPosition(
     resize.observe(surface);
     for (let node: HTMLElement | null = anchor; node; node = node.parentElement)
       resize.observe(node);
+    for (const element of elements) resize.observe(element);
     const mutation = new MutationObserver(update);
     mutation.observe(document.body, { childList: true, subtree: true });
     window.addEventListener('scroll', update, true);
@@ -122,6 +147,6 @@ export function useTourPosition(
       window.visualViewport?.removeEventListener('scroll', update);
       if (surface.isConnected) surface.hidePopover?.();
     };
-  }, [anchor, surface, placement]);
+  }, [anchor, surface, placement, elements]);
   return position;
 }
