@@ -92,12 +92,12 @@ export function useFsTreeReveal({
         const cached = dirs.current[parent];
         // A listing may omit virtual ancestors (e.g. viking://user) and return
         // a deeper directory directly. Follow actual rows rather than URI segments.
-        const find = async (page: DirState) => {
-          const match = () => {
+        const find = async (page: DirState, offset: number) => {
+          const match = (from: number) => {
             const parentUri = identify(parent);
             const targetUri = identify(resource);
             const prefix = childPrefix(parentUri);
-            return page.entries.find((item) => {
+            return page.entries.slice(from).find((item) => {
               const uri = identify(item.uri);
               return (
                 uri !== parentUri &&
@@ -107,32 +107,36 @@ export function useFsTreeReveal({
               );
             });
           };
-          const entry = match();
+          const entry = match(offset);
           if (
             !entry &&
             !lookedUpHome &&
-            page.entries.some(
-              (item) =>
-                needsHomeIdentity(item.uri, resource) ||
-                needsHomeIdentity(item.uri, parent),
-            )
+            page.entries
+              .slice(offset)
+              .some(
+                (item) =>
+                  needsHomeIdentity(item.uri, resource) ||
+                  needsHomeIdentity(item.uri, parent),
+              )
           ) {
             await loadHome();
-            return match();
+            // Resolving an alias can make a previously scanned row match.
+            return match(0);
           }
           return entry;
         };
         const scan = async (first: DirState | undefined) => {
           let page = first ?? (await fetchPage(parent, 0, signal));
+          let offset = 0;
           while (valid() && page) {
             if (page.error) throw page.error;
-            const entry = await find(page);
+            const entry = await find(page, offset);
             if (!valid()) return;
             if (entry || !page.hasMore) return entry;
-            const offset = page.entries.length;
+            offset = page.entries.length;
             page = await fetchPage(parent, offset, signal);
             if (page && page.entries.length <= offset && !page.error)
-              return find(page);
+              return find(page, 0);
           }
         };
         const usable = cached && !cached.error && !cached.loading;

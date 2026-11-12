@@ -8,6 +8,9 @@ export interface FileBrowserWorkflowLabels {
   noChanges: string;
   addedLines: string;
   removedLines: string;
+  showUnchangedLines: string;
+  hideUnchangedLines: string;
+  unchangedLines: (count: number) => string;
   copyOriginal: string;
   copied: string;
   historyPreview: string;

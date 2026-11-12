@@ -16,6 +16,7 @@ import { flattenResult } from './search-hit-order.js';
 import type { SearchFilters, SearchMode } from './search-types.js';
 import { DEFAULT_SEARCH_MODE, EMPTY_FILTERS } from './search-types.js';
 import { useFsSearch } from './use-fs-search.js';
+import { useSearchNavigation } from './use-search-navigation.js';
 
 /** 输入停顿多久后才发请求。How long typing must pause before a request. */
 const DEBOUNCE_MS = 400;
@@ -127,6 +128,7 @@ export function FileBrowserSearch({
   // belongs to the host and collapses through `onClose`. Writing it in both places would
   // clash the moment the parent makes closing conditional.
   const close = () => {
+    navigation.reset();
     setDraft('');
     setQuery('');
     setComposing(false);
@@ -136,22 +138,25 @@ export function FileBrowserSearch({
     onClose();
   };
 
+  const navigation = useSearchNavigation({
+    client,
+    rootUri,
+    requestOptions,
+    onOpenResource,
+    onSuccess: close,
+  });
   const hits = useMemo(() => flattenResult(search.result), [search.result]);
-  const openResult = (uri: string) => {
-    close();
-    void onOpenResource(uri).catch(() => {});
-  };
+  const openResult = navigation.open;
+  const error = navigation.error ?? search.error;
+  const loading =
+    navigation.pending || search.loading || (awaitingQuery && !!draft.trim());
   const retry = () => {
     inputRef.current?.focus();
-    setGeneration((value) => value + 1);
+    if (navigation.error) navigation.retry();
+    else setGeneration((value) => value + 1);
   };
   const { active, activeIndex, listId, onKeyDown, onHighlight } =
-    useSearchHighlight(
-      hits,
-      composing,
-      openResult,
-      search.error ? retry : undefined,
-    );
+    useSearchHighlight(hits, composing, openResult, error ? retry : undefined);
 
   return (
     <Modal
@@ -160,12 +165,7 @@ export function FileBrowserSearch({
       locale={locale}
       closeLabel={text.searchDismiss}
       triggerRef={triggerRef}
-      className={[
-        'ov-file-browser-search',
-        advancedOpen ? 'ov-file-browser-search--advanced' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+      className={`ov-file-browser-search${advancedOpen ? ' ov-file-browser-search--advanced' : ''}`}
       onClose={close}
     >
       <FileBrowserSearchHeader
@@ -189,7 +189,10 @@ export function FileBrowserSearch({
             setComposing(false);
           },
         }}
-        onChange={setDraft}
+        onChange={(value) => {
+          navigation.reset();
+          setDraft(value);
+        }}
         onToggleAdvanced={() => onToggleAdvanced(!advancedOpen)}
       />
       <div className="ov-file-browser-search__content">
@@ -212,14 +215,15 @@ export function FileBrowserSearch({
                 />
               ) : null
             }
-            loading={search.loading || (awaitingQuery && !!draft.trim())}
-            error={search.error}
+            loading={loading}
+            error={error}
             searched={search.result !== null}
             text={text}
             menuOpen={menuOpen}
             onToggleMenu={() => setMenuOpen((value) => !value)}
             onCloseMenu={() => setMenuOpen(false)}
             onSelectMode={(next) => {
+              navigation.reset();
               setMode(next);
               // 切模式时把筛选收敛到新模式真正会用的形态，显示与请求才不会脱节。
               // Collapse the filters to what the new mode actually uses, so the display
@@ -237,7 +241,10 @@ export function FileBrowserSearch({
             scopes={scopes}
             locale={locale}
             text={text}
-            onChange={setFilters}
+            onChange={(next) => {
+              navigation.reset();
+              setFilters(next);
+            }}
             onClose={() => onToggleAdvanced(false)}
           />
         ) : null}

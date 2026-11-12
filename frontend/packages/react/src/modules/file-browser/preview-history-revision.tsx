@@ -9,6 +9,7 @@ import {
 import type { FileBrowserWorkflowLabels } from './preview-workflow-types.js';
 import type { DashboardQuery } from './use-dashboard-query.js';
 import type { DiffLine } from './preview-diff.js';
+import { PreviewHistoryDiff } from './preview-history-diff.js';
 
 export function PreviewHistoryRevision({
   content,
@@ -85,21 +86,7 @@ export function PreviewHistoryRevision({
             identical ? (
               <p>{text.noChanges}</p>
             ) : changes ? (
-              <ol className="ov-file-history__diff">
-                {changes.map(({ kind, text: line }, index) => (
-                  <li key={index} data-change={kind}>
-                    <span aria-hidden="true">{index + 1}</span>
-                    <code>
-                      {kind === 'added'
-                        ? '+ '
-                        : kind === 'removed'
-                          ? '− '
-                          : '  '}
-                      {line.trimEnd() || '\u00a0'}
-                    </code>
-                  </li>
-                ))}
-              </ol>
+              <PreviewHistoryDiff changes={changes} text={text} />
             ) : null
           ) : content.data !== undefined ? (
             view === 'preview' && /\.md$/i.test(selectedPath ?? '') ? (

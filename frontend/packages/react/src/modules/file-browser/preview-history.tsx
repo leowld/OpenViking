@@ -87,6 +87,7 @@ export function PreviewHistory({
       />
       {showContent ? (
         <PreviewHistoryRevision
+          key={selected?.id}
           content={content}
           current={current}
           selectedPath={selected?.path}
