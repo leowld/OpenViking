@@ -11,6 +11,7 @@ export function PreviewHistoryList({
   showContent,
   selectedId,
   compare,
+  pending,
   text,
   locale,
   onCompare,
@@ -20,6 +21,7 @@ export function PreviewHistoryList({
   showContent: boolean;
   selectedId?: string;
   compare: boolean;
+  pending: boolean;
   text: FileBrowserWorkflowLabels & { loading: string; retry: string };
   locale: PreviewWorkflowProps['locale'];
   onCompare: () => void;
@@ -41,7 +43,7 @@ export function PreviewHistoryList({
             role="switch"
             aria-label={text.compareChanges}
             aria-checked={compare}
-            disabled={!selectedId}
+            disabled={!selectedId || pending}
             onClick={onCompare}
           />
         </div>
@@ -79,6 +81,7 @@ export function PreviewHistoryList({
                     type="button"
                     aria-label={entry.numbered ? title : undefined}
                     aria-pressed={selectedId === entry.id}
+                    disabled={pending}
                     onClick={() => onSelect(entry.id)}
                   >
                     {label}

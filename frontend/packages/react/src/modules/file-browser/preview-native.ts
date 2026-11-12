@@ -1,6 +1,7 @@
 import { OV_PATHS } from '../../client/paths.js';
 import { isOvClientError } from '../../client/errors.js';
 import type { OvClient, OvRequestOptions } from '../../client/types.js';
+import { contentDigest } from './fs-content-digest.js';
 import { splitWikiMetadata } from './wiki-metadata.js';
 import type {
   CompileConfig,
@@ -65,6 +66,27 @@ export async function readPreviewHistory(
     if (isOvClientError(error) && error.statusCode === 404) return [];
     throw error;
   }
+}
+
+export async function restorePreviewVersion(
+  client: OvClient,
+  uri: string,
+  version: PreviewHistoryEntry,
+  current: PreviewHistoryEntry,
+  currentText: string,
+  options: OvRequestOptions,
+) {
+  return client.request({
+    method: 'POST',
+    path: OV_PATHS.snapshotRestore,
+    body: {
+      path: uri,
+      restore_commit_id: version.snapshot,
+      current_commit_id: current.snapshot,
+      expected_content_sha256: await contentDigest(currentText),
+    },
+    options,
+  });
 }
 
 export async function readHistoricalText(

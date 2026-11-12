@@ -8,6 +8,8 @@ export interface FileBrowserWorkflowLabels {
   noChanges: string;
   addedLines: string;
   removedLines: string;
+  restoreVersion: string;
+  confirmRestore: string;
   copyOriginal: string;
   copied: string;
   historyPreview: string;

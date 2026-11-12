@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { useState, type RefObject } from 'react';
 import { Modal } from '../../shared/primitives/modal/modal.js';
 import { PreviewHistory } from './preview-history.js';
 import { PreviewCompileConfig } from './preview-compile-config.js';
@@ -24,13 +24,14 @@ export function FileBrowserNativeDialog({
 }) {
   const title = kind === 'configure' ? text.workflow.configure : text[kind];
   const common = { ...props, text: text.workflow };
+  const [historyBusy, setHistoryBusy] = useState(false);
   return (
     <Modal
       open
       title={title}
       locale={props.locale}
       triggerRef={triggerRef}
-      onClose={props.onClose}
+      onClose={historyBusy ? undefined : props.onClose}
       className={
         kind === 'history'
           ? 'ov-file-browser-workflow ov-file-history'
@@ -46,6 +47,8 @@ export function FileBrowserNativeDialog({
           {...common}
           versioned={versioned}
           showContent={showContent}
+          canWrite={canWrite}
+          onRestoreBusyChange={setHistoryBusy}
           loadingText={text.loading}
           retryText={text.retry}
         />
