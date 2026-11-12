@@ -10,7 +10,7 @@ export const isEditableText = (uri: string) =>
   /\.(?:md|json|jsonl|txt|yaml|yml)$/i.test(normalizeResourceUri(uri)) &&
   !isSystemUri(uri) &&
   !isSummaryUri(uri);
-const supportsFileHistory = (uri: string) =>
+export const supportsFileVersions = (uri: string) =>
   isEditableText(uri) &&
   !/\/\.relations\.json$/i.test(normalizeResourceUri(uri));
 
@@ -45,7 +45,7 @@ export function previewPolicy({
   const summary = isSummaryUri(uri);
   const experience = isFile && isExperienceFile(uri);
   const wiki = dashboard?.kind === 'wiki';
-  const fileHistory = isFile && supportsFileHistory(uri);
+  const fileHistory = isFile && supportsFileVersions(uri);
   return {
     system,
     edit: isFile && !system && !summary && !experience && canWrite,

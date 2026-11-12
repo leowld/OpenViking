@@ -7,6 +7,8 @@ export default {
   noChanges: 'This version matches the current file.',
   addedLines: 'Added content',
   removedLines: 'Removed content',
+  restoreVersion: 'Restore this version',
+  confirmRestore: 'Restore the selected content and save it as a new version.',
   copyOriginal: 'Copy source',
   copied: 'Copied',
   historyPreview: 'Preview',
