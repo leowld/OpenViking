@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createOvClient } from '../../client/client.js';
-import { OV_PATHS } from '../../client/paths.js';
 import { useOvClient, useOvSignal } from '../../client/provider.js';
 import type { OvClient, OvRequestOptions } from '../../client/types.js';
 import type {
@@ -9,11 +8,8 @@ import type {
 } from '../../components/viking-bot/index.js';
 import type { ConsoleChatOptions } from './types.js';
 import { useDirectoryTree } from '../../shared/directory-tree/use-directory-tree.js';
-import {
-  mentionPattern,
-  mentionSearchRows,
-  MENTION_ROOT,
-} from './mention-search.js';
+import { mentionSearchRows, MENTION_ROOT } from './mention-search.js';
+import { searchReferencePaths } from './reference-search.js';
 
 const emptyReferences: readonly VikingBotReference[] = [];
 
@@ -23,12 +19,14 @@ export function useConversationReferences({
   scopeKey,
   selection,
   directoryClient,
+  skillOnly = false,
 }: {
   enabled: boolean;
   requestOptions?: OvRequestOptions;
   scopeKey?: string;
   selection?: ConsoleChatOptions['referenceSelection'];
   directoryClient?: OvClient;
+  skillOnly?: boolean;
 }) {
   const inheritedClient = useOvClient('local');
   const inheritedSignal = useOvSignal();
@@ -47,6 +45,7 @@ export function useConversationReferences({
       client,
       scopeKey,
       enabled,
+      skillOnly,
       options: { baseURL, apiKey, accountId, userId, resourceId, signal },
     }),
     [
@@ -59,6 +58,7 @@ export function useConversationReferences({
       signal,
       scopeKey,
       enabled,
+      skillOnly,
     ],
   );
   const [selected, setSelected] = useState<{
@@ -124,18 +124,13 @@ export function useConversationReferences({
       ? AbortSignal.any([signal, controller.signal])
       : controller.signal;
     const timer = setTimeout(() => {
-      void scope.client
-        .request<{ matches: unknown }>({
-          method: 'POST',
-          path: OV_PATHS.searchGlob,
-          body: {
-            uri: MENTION_ROOT,
-            pattern: mentionPattern(keyword),
-            node_limit: 100,
-          },
-          options: { ...scope.options, signal: requestSignal },
-        })
-        .then(({ matches }) => {
+      void searchReferencePaths(
+        scope.client,
+        keyword,
+        { ...scope.options, signal: requestSignal },
+        scope.skillOnly,
+      )
+        .then((matches) => {
           if (requestSignal.aborted) return;
           setSearch({ scope, keyword, rows: mentionSearchRows(matches) });
         })
