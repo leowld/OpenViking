@@ -123,23 +123,24 @@ import '@openviking/react/components/file-preview/style.css';
 
 按格式渲染 `source` 的页签，包含 `FilePreviewTabBase` 的全部字段。
 
-| 参数           | 说明                                                                                 | 类型                                                          | 默认值  |
-| -------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------- | ------- |
-| kind           | 页签类型，固定为 `'file'`                                                            | `'file'`                                                      | 必填    |
-| source         | 要预览的内容与文件信息，有可用的 `levels` 时渲染当前层级的 `source`                  | `FilePreviewSource`                                           | 必填    |
-| emptyLabel     | 覆盖正文为空时的默认提示。                                                           | `string`                                                      | -       |
-| loading        | 正文还在读取：正文区显示加载态，页签行和路径行照常显示，此时 `source` 可以没有内容   | `boolean`                                                     | `false` |
-| operations     | 异步执行能力，省略的方法对应的入口不可用                                             | `FilePreviewOperations`                                       | -       |
-| resources      | 伴随资源，按 `key` 匹配 Markdown 里的图片地址，可以是相对路径或 `viking://` URI      | `readonly FileViewerResource[]`                               | -       |
-| levels         | 分级内容，每级有自己的 `source`、`resources` 和 `editing`                            | `readonly FilePreviewLevel[]`                                 | -       |
-| activeLevelKey | 受控的当前层级，省略时使用第一个未禁用的层级                                         | `string`                                                      | -       |
-| videoDetails   | 视频转录文稿与抽帧图片                                                               | `FilePreviewFileTab['videoDetails']`                          | -       |
-| resolveImage   | 解析 Markdown 里的图片地址并返回可访问的 URL，请求、取消和 Blob URL 的回收由宿主负责 | `(src: string, source: FilePreviewSource) => Promise<string>` | -       |
-| editing        | 编辑能力，省略时只读，是否可编辑只取决于它；启用 `levels` 后只取当前层级的 `editing` | `FilePreviewEditing`                                          | -       |
-| actions        | 标题行里的宿主操作，数组或接收上下文的函数，规则见「注意」                           | `FilePreviewActionSource`                                     | -       |
-| onLevelChange  | 切换层级时触发，参数为新层级的 `key`，受控时由宿主更新 `activeLevelKey`              | `(key: string) => void`                                       | -       |
-| onOpenUri      | Markdown 里的链接通过 `operations.openUri` 打开后触发，参数为被点击的链接地址        | `(uri: string) => void`                                       | -       |
-| slots          | 标题行、页脚与状态插槽                                                               | `FilePreviewFileTabSlots`                                     | -       |
+| 参数             | 说明                                                                                 | 类型                                                          | 默认值  |
+| ---------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------- | ------- |
+| kind             | 页签类型，固定为 `'file'`                                                            | `'file'`                                                      | 必填    |
+| source           | 要预览的内容与文件信息，有可用的 `levels` 时渲染当前层级的 `source`                  | `FilePreviewSource`                                           | 必填    |
+| emptyLabel       | 覆盖正文为空时的默认提示。                                                           | `string`                                                      | -       |
+| loading          | 正文还在读取：正文区显示加载态，页签行和路径行照常显示，此时 `source` 可以没有内容   | `boolean`                                                     | `false` |
+| operations       | 异步执行能力，省略的方法对应的入口不可用                                             | `FilePreviewOperations`                                       | -       |
+| resources        | 伴随资源，按 `key` 匹配 Markdown 里的图片地址，可以是相对路径或 `viking://` URI      | `readonly FileViewerResource[]`                               | -       |
+| levels           | 分级内容，每级有自己的 `source`、`resources` 和 `editing`                            | `readonly FilePreviewLevel[]`                                 | -       |
+| activeLevelKey   | 受控的当前层级，省略时使用第一个未禁用的层级                                         | `string`                                                      | -       |
+| videoDetails     | 视频转录文稿与抽帧图片                                                               | `FilePreviewFileTab['videoDetails']`                          | -       |
+| resolveImage     | 解析 Markdown 里的图片地址并返回可访问的 URL，请求、取消和 Blob URL 的回收由宿主负责 | `(src: string, source: FilePreviewSource) => Promise<string>` | -       |
+| editing          | 编辑能力，省略时只读，是否可编辑只取决于它；启用 `levels` 后只取当前层级的 `editing` | `FilePreviewEditing`                                          | -       |
+| actions          | 标题行里的宿主操作，数组或接收上下文的函数，规则见「注意」                           | `FilePreviewActionSource`                                     | -       |
+| onLevelChange    | 切换层级时触发，参数为新层级的 `key`，受控时由宿主更新 `activeLevelKey`              | `(key: string) => void`                                       | -       |
+| markdownLinkMode | 控制交给 `openUri` 的 Markdown 链接。                                                | `'resources'`                                                 | -       |
+| onOpenUri        | Markdown 里的链接通过 `operations.openUri` 打开后触发，参数为被点击的链接地址        | `(uri: string) => void`                                       | -       |
+| slots            | 标题行、页脚与状态插槽                                                               | `FilePreviewFileTabSlots`                                     | -       |
 
 #### videoDetails
 
@@ -419,7 +420,7 @@ import '@openviking/react/components/file-preview/style.css';
 - Markdown 元数据：开头的 YAML 元数据在预览里显示为代码块，源码、编辑、保存和复制仍使用原文。
 - 点阵背景：Markdown 正文及 PDF、Word、PPT 的页面外围显示点阵背景，随宿主主题切换，底色和点色见下方「主题变量」。
 - Markdown 图片：先匹配 `resources`，未命中再调用 `resolveImage`，`resolveImage` 拒绝时使用图片的原始地址；组件不会把 `viking://` 转成 HTTP 地址。
-- 文件正文链接：传入 `operations.openUri` 后，所有 Markdown 链接（包括外链）均由宿主接管，组件阻止默认跳转，并传出原始地址供宿主解析；省略回调时沿用渲染器的默认行为。
+- 文件正文链接：传入 `operations.openUri` 后，所有 Markdown 链接（包括外链）均由宿主接管，组件阻止默认跳转，并传出原始地址供宿主解析；省略回调时沿用渲染器的默认行为。设为 `markdownLinkMode: 'resources'` 时，宿主接收 Viking URI 和相对资源链接，外链及页内锚点保留各自的导航行为。
 - 目录摘要链接：`operations.openUri` 接收 Viking URI 和相对资源链接的原始地址。HTTP、HTTPS、邮件、电话和协议相对外链保留浏览器原生交互。
 - 目录锚点：同文档链接可定位带显式 `id` 的 HTML 标题（`h1`–`h6`），无需提供 `operations.openUri`。普通 Markdown 标题不会自动生成 ID，需要链接目标时使用 HTML 标题：
 

@@ -6,6 +6,8 @@ import { FileBrowser } from '@openviking/react/modules/file-browser';
 
 const rootUri = 'viking://resources';
 const directory = `${rootUri}/docs`;
+const wikiIndex = `${directory}/index.md`;
+const wikiArticle = `${directory}/method/小结 1.md`;
 const literalDirectories = ['Finance#Q4', '100%', '100%20'].map(
   (name) => `${rootUri}/${name}`,
 );
@@ -28,6 +30,7 @@ HTMLElement.prototype.scrollIntoView = function (options) {
 };
 const content = [
   '[Relative child](child/.overview.md)',
+  '[Wiki article](method/%E5%B0%8F%E7%BB%93%201.md)',
   '[Literal base child](guide.md)',
   '[Absolute resource](viking://resources/guide.md)',
   '[Encoded resource](viking://resources/docs/child%20folder/.overview.md)',
@@ -62,10 +65,14 @@ const fetch: typeof globalThis.fetch = (input) => {
           ? [
               { uri: `${directory}/child`, isDir: true },
               { uri: `${directory}/child folder`, isDir: true },
+              { uri: wikiIndex, isDir: false },
+              { uri: `${directory}/method`, isDir: true },
             ]
-          : literalDirectories.includes(uri)
-            ? [{ uri: `${uri}/guide.md`, isDir: false }]
-            : [],
+          : uri === `${directory}/method`
+            ? [{ uri: wikiArticle, isDir: false }]
+            : literalDirectories.includes(uri)
+              ? [{ uri: `${uri}/guide.md`, isDir: false }]
+              : [],
     );
   if (/\/content\/(abstract|overview|read)$/.test(url.pathname)) {
     evidence.reads.push(uri);
@@ -137,6 +144,11 @@ createRoot(document.getElementById('root')!).render(
     </section>
     <section id="file">
       <FileHost />
+    </section>
+    <section id="wiki-index">
+      <OpenVikingProvider fetch={fetch}>
+        <FileBrowser rootUri={rootUri} defaultUri={wikiIndex} />
+      </OpenVikingProvider>
     </section>
     <section id="anchor-only">
       <FilePreview

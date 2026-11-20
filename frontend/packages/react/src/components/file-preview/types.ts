@@ -182,6 +182,8 @@ export interface FilePreviewFileTab extends FilePreviewTabBase {
    * File operation capabilities; omitting a method makes its operation unavailable.
    */
   operations?: FilePreviewOperations;
+  /** Delegate relative and Viking links to openUri, keeping external links in the browser. */
+  markdownLinkMode?: 'resources';
   /**
    * 主文件之外、按 key 读取的伴随资源，例如 3D 模型的贴图。
    * Companion resources read by key alongside the main file, for example

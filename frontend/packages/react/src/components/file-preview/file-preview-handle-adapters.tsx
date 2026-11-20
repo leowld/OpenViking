@@ -9,7 +9,7 @@ import { useCallback, useRef } from 'react';
 import type { MarkdownAdapterOptions } from '@ark-design/ui/file-viewer/adapters/markdown';
 
 import { createFilePreviewAdapterList } from './file-preview-adapters.js';
-import type { DirectoryLinkMode } from './file-preview-adapters.js';
+import type { PreviewLinkMode } from './file-preview-adapters.js';
 
 export interface FilePreviewAdapterOptions {
   /** 底座交出或收回命令式句柄时调用。 */
@@ -18,7 +18,7 @@ export interface FilePreviewAdapterOptions {
   onViewModesChange: (modes: readonly ViewerViewModeOption[]) => void;
   /** Markdown 正文链接的点击回调；目录策略可限定接管范围。 */
   onLinkClick?: MarkdownAdapterOptions['onLinkClick'];
-  directoryLinks?: DirectoryLinkMode;
+  linkMode?: PreviewLinkMode;
   sessionMessages?: boolean;
   resolveImage?: (src: string) => Promise<string>;
 }
@@ -43,13 +43,13 @@ export function createFilePreviewAdapters({
   onViewModesChange,
   onLinkClick,
   resolveImage,
-  directoryLinks,
+  linkMode,
   sessionMessages,
 }: FilePreviewAdapterOptions): FileViewerCoreProps['adapters'] {
   return createFilePreviewAdapterList({
     onLinkClick,
     resolveImage,
-    directoryLinks,
+    linkMode,
     sessionMessages,
   }).map((adapter) => {
     const wrap: Adapter = (context) => {

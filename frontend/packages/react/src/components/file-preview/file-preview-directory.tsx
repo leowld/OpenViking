@@ -168,7 +168,7 @@ export function FilePreviewDirectoryBody({
               onHandleChange={onHandleChange}
               onViewModesChange={onViewModesChange}
               onLinkClick={onLinkClick}
-              directoryLinks={tab.operations?.openUri ? 'resources' : 'anchors'}
+              linkMode={tab.operations?.openUri ? 'resources' : 'anchors'}
               onCancelEditing={onCancelEditing}
               onStateChange={(state) =>
                 layer.onProbeStatus(probeStatusOf(state))

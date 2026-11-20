@@ -35,14 +35,20 @@ export function useLinkClickHandler(
   const latest = useRef({
     fileTab,
     actions,
-    directory: tab?.kind === 'directory',
+    handlesAnchors:
+      tab?.kind === 'directory' || tab?.markdownLinkMode === 'resources',
   });
-  latest.current = { fileTab, actions, directory: tab?.kind === 'directory' };
+  latest.current = {
+    fileTab,
+    actions,
+    handlesAnchors:
+      tab?.kind === 'directory' || tab?.markdownLinkMode === 'resources',
+  };
   const handler = useCallback<
     NonNullable<MarkdownAdapterOptions['onLinkClick']>
   >((event, link) => {
     const url = link.url.trim();
-    if (latest.current.directory && url.startsWith('#')) {
+    if (latest.current.handlesAnchors && url.startsWith('#')) {
       let id;
       try {
         id = decodeURIComponent(url.slice(1));

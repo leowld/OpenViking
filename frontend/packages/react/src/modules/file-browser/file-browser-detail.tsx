@@ -139,11 +139,18 @@ function decorateTabs(
           }
         : {}),
       actions: actions ?? tab.actions,
+      ...(onOpenUri &&
+      tab.kind === 'file' &&
+      !tab.operations?.openUri &&
+      tab.source.path?.startsWith('viking://')
+        ? { markdownLinkMode: 'resources' as const }
+        : {}),
       operations: {
         ...tab.operations,
         openUri:
           tab.operations?.openUri ??
-          (onOpenUri && tab.kind === 'directory'
+          (onOpenUri &&
+          (tab.kind === 'directory' || tab.source.path?.startsWith('viking://'))
             ? (target) => openPreviewLink(tab, target, onOpenUri)
             : undefined),
       },

@@ -175,6 +175,11 @@ export function FilePreviewPanels({
               onHandleChange={onHandleChange}
               onViewModesChange={onViewModesChange}
               onLinkClick={linkClickHandler}
+              linkMode={
+                layerTab.markdownLinkMode === 'resources' && linkClickHandler
+                  ? 'file-resources'
+                  : undefined
+              }
               onCancelEditing={actionContext.cancelEditing}
               onStateChange={(state) => onProbeStatus(probeStatusOf(state))}
               reports={reports}

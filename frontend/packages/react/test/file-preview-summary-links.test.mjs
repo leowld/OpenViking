@@ -23,6 +23,7 @@ test('summary links navigate through FileBrowser and standalone directory operat
         link('standalone', 'Absolute resource') &&
         link('browser', 'Relative child') &&
         link('file', 'Web reference') &&
+        link('wiki-index', 'Wiki article') &&
         link('anchor-only', 'Same document'),
     );
     link('standalone', 'Absolute resource').click();
@@ -37,7 +38,12 @@ test('summary links navigate through FileBrowser and standalone directory operat
     await waitFor(() => evidence().standalone.length === 2);
     assert.equal(evidence().standalone[1], 'child/.overview.md');
 
-    for (const section of ['standalone', 'browser', 'anchor-only']) {
+    for (const section of [
+      'standalone',
+      'browser',
+      'wiki-index',
+      'anchor-only',
+    ]) {
       for (const [label, href] of [
         ['Web reference', 'https://example.com/reference'],
         ['HTTP reference', 'http://example.com/reference'],
@@ -80,6 +86,20 @@ test('summary links navigate through FileBrowser and standalone directory operat
       await waitFor(() => evidence().file.length === index + 1);
       assert.equal(evidence().file[index], target);
     }
+    const wikiIndex = document.getElementById('wiki-index');
+    const wikiArticle = 'viking://resources/docs/method/小结 1.md';
+    const wikiScrolls = evidence().scrolled.length;
+    link('wiki-index', 'Same document').click();
+    await waitFor(() => evidence().scrolled.length > wikiScrolls);
+    assert.match(evidence().scrolled.at(-1), /details$/);
+    link('wiki-index', 'Wiki article').click();
+    await waitFor(() => evidence().reads.includes(wikiArticle));
+    await waitFor(
+      () =>
+        wikiIndex
+          .querySelector('[data-file-tree-row-id][aria-selected="true"]')
+          ?.getAttribute('data-file-tree-row-id') === wikiArticle,
+    );
     const heading = document.querySelector('#anchor-only h2[id$="details"]');
     assert.equal(heading?.textContent, 'Details');
     const scrollsBeforeAnchor = evidence().scrolled.length;

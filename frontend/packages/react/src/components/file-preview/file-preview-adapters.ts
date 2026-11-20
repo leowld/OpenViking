@@ -21,7 +21,7 @@ import {
   recoverImportedMarkdownImages,
 } from './file-preview-markdown-images.js';
 
-export type DirectoryLinkMode = 'resources' | 'anchors';
+export type PreviewLinkMode = 'resources' | 'anchors' | 'file-resources';
 
 /**
  * 组件内置的格式集合：文本、文档、图片与音视频。
@@ -46,35 +46,36 @@ export type DirectoryLinkMode = 'resources' | 'anchors';
 export function createFilePreviewAdapterList({
   onLinkClick,
   resolveImage,
-  directoryLinks,
+  linkMode,
   sessionMessages = false,
 }: {
   /**
    * 接管 Markdown 正文里的链接；目录正文通过内部模式保留外链原生导航。
    *
-   * Handles Markdown links; directory bodies use an internal mode to preserve native external links.
+   * Handles Markdown links while resource navigation preserves native external links.
    */
   onLinkClick?: MarkdownAdapterOptions['onLinkClick'];
   resolveImage?: (src: string) => Promise<string>;
-  directoryLinks?: DirectoryLinkMode;
+  linkMode?: PreviewLinkMode;
   sessionMessages?: boolean;
 } = {}): FileViewerCoreProps['adapters'] {
+  const followsResourceLinks =
+    linkMode === 'resources' || linkMode === 'file-resources';
   return [
     code({ showLineNumbers: true }),
     text({ showLineNumbers: true }),
     sessionJsonAdapter(sessionMessages),
     markdown({
-      onLinkClick: directoryLinks ? undefined : onLinkClick,
-      allowedLinkProtocols:
-        directoryLinks === 'resources' ? ['viking'] : undefined,
+      onLinkClick: linkMode ? undefined : onLinkClick,
+      allowedLinkProtocols: followsResourceLinks ? ['viking'] : undefined,
       rendererProps: {
-        slots: directoryLinks ? { Header: DirectoryHeading } : undefined,
-        linkPolicy: directoryLinks
+        slots: linkMode ? { Header: DirectoryHeading } : undefined,
+        linkPolicy: linkMode
           ? (target) => {
               const url = target.trim();
               const scheme = /^([a-z][a-z\d+.-]*):/i.exec(url)?.[1];
               return url.startsWith('#') ||
-                (directoryLinks === 'resources' &&
+                (followsResourceLinks &&
                   url &&
                   !url.startsWith('//') &&
                   (!scheme || scheme.toLowerCase() === 'viking'))
@@ -84,7 +85,7 @@ export function createFilePreviewAdapterList({
           : undefined,
         eventCallbacks: {
           onLinkClick:
-            directoryLinks && onLinkClick
+            linkMode && onLinkClick
               ? (event, link) =>
                   onLinkClick(event, { url: link.url, fileType: 'markdown' })
               : undefined,
